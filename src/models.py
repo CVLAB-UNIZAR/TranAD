@@ -531,7 +531,7 @@ class TranCIRCE(nn.Module):
 		self.lr = lr
 		self.batch = 128
 		self.n_feats = feats
-		self.n_window = 10
+		self.n_window = 5
 		self.margin = 1
 		self.n = self.n_feats * self.n_window
 		self.pos_encoder = PositionalEncoding(2 * feats, 0.1, self.n_window)
