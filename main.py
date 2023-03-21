@@ -355,7 +355,7 @@ def backprop(epoch, model, data, dataO, optimizer, scheduler, training = True, d
 			return loss.detach().numpy(), y_pred.detach().numpy()
 
 if __name__ == '__main__':
-	train_loader, test_loader, labels = load_dataset(args.dataset, 35)
+	train_loader, test_loader, labels = load_dataset(args.dataset, 0)
 	if args.model in ['MERLIN']:
 		eval(f'run_{args.model.lower()}(test_loader, labels, args.dataset)')
 	model, optimizer, scheduler, epoch, accuracy_list = load_model(args.model, labels.shape[1])
@@ -369,9 +369,9 @@ if __name__ == '__main__':
 	### Training phase
 	if not args.test:
 		print(f'{color.HEADER}Training {args.model} on {args.dataset}{color.ENDC}')
-		num_epochs = 50; e = epoch + 1; start = time()
+		num_epochs = 100; e = epoch + 1; start = time()
 		for e in tqdm(list(range(epoch+1, epoch+num_epochs+1))):
-			lossT, lr = backprop(e, model, trainD, trainO, optimizer, scheduler, dataTest= testD)
+			lossT, lr = backprop(e, model, trainD, trainO, optimizer, scheduler, dataTest= None)
 			accuracy_list.append((lossT, lr))
 		print(color.BOLD+'Training time: '+"{:10.4f}".format(time()-start)+' s'+color.ENDC)
 		save_model(model, optimizer, scheduler, e, accuracy_list)
