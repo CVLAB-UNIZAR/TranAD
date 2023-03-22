@@ -355,7 +355,7 @@ def backprop(epoch, model, data, dataO, optimizer, scheduler, training = True, d
 			return loss.detach().numpy(), y_pred.detach().numpy()
 
 if __name__ == '__main__':
-	train_loader, test_loader, labels = load_dataset(args.dataset, 0)
+	train_loader, test_loader, labels = load_dataset(args.dataset, 5)
 	if args.model in ['MERLIN']:
 		eval(f'run_{args.model.lower()}(test_loader, labels, args.dataset)')
 	model, optimizer, scheduler, epoch, accuracy_list = load_model(args.model, labels.shape[1])

@@ -157,7 +157,7 @@ def load_data(dataset):
 				labels[indices[i]:indices[i+1], :] = 1
 			np.save(f'{folder}/{fn}_labels.npy', labels)
 	elif dataset == 'CIRCE':
-		dataset_folder = 'data/CIRCE/Sin fundamental'
+		dataset_folder = 'data/CIRCE/Sin fundamental + pulso'
 		prefalta = np.load(os.path.join(dataset_folder, f'DB_CT802_PulsoPrefalta_4000.npz'))
 		register = prefalta['tipos']
 
