@@ -205,7 +205,7 @@ def load_data(dataset):
 		for i in range(200):
 			ini = int(ft[i]/0.01)-25
 			if ini<0: ini=0
-			labels[i,ini:ini+5,:] = np.ones((5,3))
+			labels[i,ini:,:] = np.ones((4000-ini,3))
 		np.save(f'{folder}/CIRCE_labels.npy', labels)
 	elif dataset == 'WADI':
 		dataset_folder = 'data/WADI'
