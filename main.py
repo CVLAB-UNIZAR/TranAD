@@ -311,6 +311,7 @@ def backprop(epoch, model, data, dataO, optimizer, scheduler, training = True, d
 			if dataTest is not None:
 				for d1, d2 in zip(dataloader, dataloader_test):
 					d1 = d1[0]
+					
 					local_bs = d1.shape[0]
 					window = d1.permute(1, 0, 2)
 					elem = window[-1, :, :].view(1, local_bs, feats)
