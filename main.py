@@ -17,13 +17,14 @@ from pprint import pprint
 # from beepy import beep
 from torchviz import make_dot
 import dagshub
+import random
 
 import os
 os.environ["PATH"] += os.pathsep + 'C:/Users/jelia/anaconda3/envs/GANs/Library/bin/graphviz/'
 
 def convert_to_windows(data, model):
 	windows = []; w_size = model.n_window
-	for i, g in enumerate(data): 
+	for i, g in enumerate(data):
 		if i >= w_size: w = data[i-w_size:i]
 		else: w = torch.cat([data[0].repeat(w_size-i, 1), data[0:i]])
 		windows.append(w if 'TranAD' or 'TranCIRCE' in args.model or 'Attention' in args.model else w.view(-1))
@@ -46,7 +47,8 @@ def load_dataset(dataset, idx):
 	if args.less: loader[0] = cut_array(0.2, loader[0])
 	train_loader = DataLoader(loader[0], batch_size=loader[0].shape[0])
 	if dataset == 'CIRCE':
-		test_loader = DataLoader(loader[1][idx,:,:], batch_size=loader[1].shape[1])
+		random_idx = random.randint(0, 199)
+		test_loader = DataLoader(loader[1][random_idx,:,:], batch_size=loader[1].shape[1])
 		labels = loader[2][idx,:,:]
 	else:
 		test_loader = DataLoader(loader[1], batch_size=loader[1].shape[0])
@@ -111,7 +113,7 @@ def backprop(epoch, model, data, dataO, optimizer, scheduler, training = True, d
 			return np.mean(l1s)+np.mean(l2s), optimizer.param_groups[0]['lr']
 		else:
 			ae1s = []
-			for d in data: 
+			for d in data:
 				_, x_hat, _, _ = model(d)
 				ae1s.append(x_hat)
 			ae1s = torch.stack(ae1s)
@@ -138,7 +140,7 @@ def backprop(epoch, model, data, dataO, optimizer, scheduler, training = True, d
 			return np.mean(l1s), optimizer.param_groups[0]['lr']
 		else:
 			ae1s, y_pred = [], []
-			for d in data: 
+			for d in data:
 				ae1 = model(d)
 				y_pred.append(ae1[-1])
 				ae1s.append(ae1)
@@ -187,7 +189,7 @@ def backprop(epoch, model, data, dataO, optimizer, scheduler, training = True, d
 			return np.mean(l1s)+np.mean(l2s), optimizer.param_groups[0]['lr']
 		else:
 			ae1s, ae2s, ae2ae1s = [], [], []
-			for d in data: 
+			for d in data:
 				ae1, ae2, ae2ae1 = model(d)
 				ae1s.append(ae1); ae2s.append(ae2); ae2ae1s.append(ae2ae1)
 			ae1s, ae2s, ae2ae1s = torch.stack(ae1s), torch.stack(ae2s), torch.stack(ae2ae1s)
@@ -201,7 +203,7 @@ def backprop(epoch, model, data, dataO, optimizer, scheduler, training = True, d
 		l1s = []
 		if training:
 			for i, d in enumerate(data):
-				if 'MTAD_GAT' in model.name: 
+				if 'MTAD_GAT' in model.name:
 					x, h = model(d, h if i else None)
 				else:
 					x = model(d)
@@ -214,8 +216,8 @@ def backprop(epoch, model, data, dataO, optimizer, scheduler, training = True, d
 			return np.mean(l1s), optimizer.param_groups[0]['lr']
 		else:
 			xs = []
-			for d in data: 
-				if 'MTAD_GAT' in model.name: 
+			for d in data:
+				if 'MTAD_GAT' in model.name:
 					x, h = model(d, None)
 				else:
 					x = model(d)
@@ -244,7 +246,7 @@ def backprop(epoch, model, data, dataO, optimizer, scheduler, training = True, d
 				optimizer.step()
 				# training generator
 				z, _, fake = model(d)
-				mse = msel(z, d) 
+				mse = msel(z, d)
 				gl = bcel(fake, real_label)
 				tl = gl + mse
 				tl.backward()
@@ -256,7 +258,7 @@ def backprop(epoch, model, data, dataO, optimizer, scheduler, training = True, d
 			return np.mean(gls)+np.mean(dls), optimizer.param_groups[0]['lr']
 		else:
 			outputs = []
-			for d in data: 
+			for d in data:
 				z, _, _ = model(d)
 				outputs.append(z)
 			outputs = torch.stack(outputs)
@@ -311,7 +313,7 @@ def backprop(epoch, model, data, dataO, optimizer, scheduler, training = True, d
 			if dataTest is not None:
 				for d1, d2 in zip(dataloader, dataloader_test):
 					d1 = d1[0]
-					
+
 					local_bs = d1.shape[0]
 					window = d1.permute(1, 0, 2)
 					elem = window[-1, :, :].view(1, local_bs, feats)
@@ -394,7 +396,7 @@ if __name__ == '__main__':
 	### Training phase
 	if not args.test:
 		print(f'{color.HEADER}Training {args.model} on {args.dataset}{color.ENDC}')
-		num_epochs = 150; e = epoch + 1; start = time()
+		num_epochs = 50; e = epoch + 1; start = time()
 		for e in tqdm(list(range(epoch+1, epoch+num_epochs+1))):
 			lossT, lr = backprop(e, model, trainD, trainO, optimizer, scheduler, dataTest=testD)
 			accuracy_list.append((lossT, lr))
@@ -411,6 +413,7 @@ if __name__ == '__main__':
 	### Plot curves
 	if args.test:
 		if 'TranAD' in model.name: testO = torch.roll(testO, 1, 0)
+		plotter(f'{args.model}_{args.dataset}', testO, y_pred, loss, labels)
 		plotter(f'{args.model}_{args.dataset}', testO, y_pred, loss, labels)
 
 	### Scores
