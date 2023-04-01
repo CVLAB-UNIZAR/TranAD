@@ -3,6 +3,7 @@ import os
 from src.constants import *
 import pandas as pd 
 import numpy as np
+import torch
 
 class color:
     HEADER = '\033[95m'
@@ -40,3 +41,20 @@ def getresults2(df, result):
 		results2[a] = df2[a]
 	results2['f1*'] = 2 * results2['precision'] * results2['recall'] / (results2['precision'] + results2['recall'])
 	return results2
+
+def pearson_corr(prefalta, falta):
+	pdPrefalta = pd.DataFrame(prefalta[0,:,:].detach().numpy())
+	pdFalta = pd.DataFrame(falta.detach().numpy())
+
+	r_window_size = 120
+	# Compute rolling window synchrony
+	pd_rolling_r = pdPrefalta.rolling(window=r_window_size, center=True).corr(pdFalta)
+	pd_rolling_r = pd_rolling_r.fillna(1)
+	#pd_rolling_r.plot()
+	# plt.xlabel='Frame'
+	# plt.ylabel='Pearson r'
+	# plt.suptitle("Phases data and rolling window correlation")
+	#plt.show()
+	#print(pd_rolling_r.head(10))
+	rolling_r = torch.tensor(pd_rolling_r.values)
+	return rolling_r
