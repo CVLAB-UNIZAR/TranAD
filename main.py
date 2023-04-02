@@ -361,7 +361,9 @@ def backprop(epoch, model, data, dataO, optimizer, scheduler, training = True, d
 
 			with torch.no_grad():
 				plotDiff(f'.', torch.abs(z-0.5)[0,:,:], torch.abs(dataO-0.5), labels)
-			loss = pearson_corr(z, dataO)
+			#loss = pearson_corr(z, dataO)
+			#loss = time_lagged_cross_correlation(z, dataO)
+			loss = phase_syncrony(z, dataO)
 			#loss = l(torch.abs(z-0.5), torch.abs(dataO-0.5))[0] #0.5*l(z[0], dataO)[0] + 0.5*l(z[1], dataO)[0]
 			return loss.detach().numpy(), z.detach().numpy()[0]
 	else:
