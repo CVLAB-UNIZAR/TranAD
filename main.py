@@ -17,19 +17,47 @@ from pprint import pprint
 # from beepy import beep
 from torchviz import make_dot
 import dagshub
+import random
 
 import os
 os.environ["PATH"] += os.pathsep + 'C:/Users/jelia/anaconda3/envs/GANs/Library/bin/graphviz/'
 
 def convert_to_windows(data, model):
 	windows = []; w_size = model.n_window
-	for i, g in enumerate(data): 
+	for i, g in enumerate(data):
 		if i >= w_size: w = data[i-w_size:i]
 		else: w = torch.cat([data[0].repeat(w_size-i, 1), data[0:i]])
 		windows.append(w if 'TranAD' or 'TranCIRCE' in args.model or 'Attention' in args.model else w.view(-1))
 	return torch.stack(windows)
 
 def load_dataset(dataset, idx):
+	folder = os.path.join(output_folder, dataset)
+	if not os.path.exists(folder):
+		raise Exception('Processed Data not found.')
+	loader = []
+	for file in ['train', 'test', 'labels']:
+		if dataset == 'SMD': file = 'machine-1-1_' + file
+		if dataset == 'SMAP': file = 'P-1_' + file
+		if dataset == 'MSL': file = 'C-1_' + file
+		if dataset == 'UCR': file = '136_' + file
+		if dataset == 'NAB': file = 'ec2_request_latency_system_failure_' + file
+		if dataset == 'CIRCE': file = 'CIRCE_' + file
+		loader.append(np.load(os.path.join(folder, f'{file}.npy')))
+	# loader = [i[:, debug:debug+1] for i in loader]
+	if args.less: loader[0] = cut_array(0.2, loader[0])
+	train_loader = DataLoader(loader[0], batch_size=loader[0].shape[0])
+	if dataset == 'CIRCE':
+		random_idx = random.randint(0, 199)
+		test_loader = DataLoader(loader[1][random_idx,:,:], batch_size=loader[1].shape[1])
+		labels = loader[2][random_idx,:,:]
+	else:
+		test_loader = DataLoader(loader[1], batch_size=loader[1].shape[0])
+		labels = loader[2]
+
+
+	return train_loader, test_loader, labels
+
+def load_dataset_test(dataset, idx):
 	folder = os.path.join(output_folder, dataset)
 	if not os.path.exists(folder):
 		raise Exception('Processed Data not found.')
@@ -111,7 +139,7 @@ def backprop(epoch, model, data, dataO, optimizer, scheduler, training = True, d
 			return np.mean(l1s)+np.mean(l2s), optimizer.param_groups[0]['lr']
 		else:
 			ae1s = []
-			for d in data: 
+			for d in data:
 				_, x_hat, _, _ = model(d)
 				ae1s.append(x_hat)
 			ae1s = torch.stack(ae1s)
@@ -138,7 +166,7 @@ def backprop(epoch, model, data, dataO, optimizer, scheduler, training = True, d
 			return np.mean(l1s), optimizer.param_groups[0]['lr']
 		else:
 			ae1s, y_pred = [], []
-			for d in data: 
+			for d in data:
 				ae1 = model(d)
 				y_pred.append(ae1[-1])
 				ae1s.append(ae1)
@@ -187,7 +215,7 @@ def backprop(epoch, model, data, dataO, optimizer, scheduler, training = True, d
 			return np.mean(l1s)+np.mean(l2s), optimizer.param_groups[0]['lr']
 		else:
 			ae1s, ae2s, ae2ae1s = [], [], []
-			for d in data: 
+			for d in data:
 				ae1, ae2, ae2ae1 = model(d)
 				ae1s.append(ae1); ae2s.append(ae2); ae2ae1s.append(ae2ae1)
 			ae1s, ae2s, ae2ae1s = torch.stack(ae1s), torch.stack(ae2s), torch.stack(ae2ae1s)
@@ -201,7 +229,7 @@ def backprop(epoch, model, data, dataO, optimizer, scheduler, training = True, d
 		l1s = []
 		if training:
 			for i, d in enumerate(data):
-				if 'MTAD_GAT' in model.name: 
+				if 'MTAD_GAT' in model.name:
 					x, h = model(d, h if i else None)
 				else:
 					x = model(d)
@@ -214,8 +242,8 @@ def backprop(epoch, model, data, dataO, optimizer, scheduler, training = True, d
 			return np.mean(l1s), optimizer.param_groups[0]['lr']
 		else:
 			xs = []
-			for d in data: 
-				if 'MTAD_GAT' in model.name: 
+			for d in data:
+				if 'MTAD_GAT' in model.name:
 					x, h = model(d, None)
 				else:
 					x = model(d)
@@ -244,7 +272,7 @@ def backprop(epoch, model, data, dataO, optimizer, scheduler, training = True, d
 				optimizer.step()
 				# training generator
 				z, _, fake = model(d)
-				mse = msel(z, d) 
+				mse = msel(z, d)
 				gl = bcel(fake, real_label)
 				tl = gl + mse
 				tl.backward()
@@ -256,7 +284,7 @@ def backprop(epoch, model, data, dataO, optimizer, scheduler, training = True, d
 			return np.mean(gls)+np.mean(dls), optimizer.param_groups[0]['lr']
 		else:
 			outputs = []
-			for d in data: 
+			for d in data:
 				z, _, _ = model(d)
 				outputs.append(z)
 			outputs = torch.stack(outputs)
@@ -311,7 +339,7 @@ def backprop(epoch, model, data, dataO, optimizer, scheduler, training = True, d
 			if dataTest is not None:
 				for d1, d2 in zip(dataloader, dataloader_test):
 					d1 = d1[0]
-					
+
 					local_bs = d1.shape[0]
 					window = d1.permute(1, 0, 2)
 					elem = window[-1, :, :].view(1, local_bs, feats)
@@ -389,13 +417,20 @@ if __name__ == '__main__':
 	if model.name in ['Attention', 'DAGMM', 'USAD', 'MSCRED', 'CAE_M', 'GDN', 'MTAD_GAT', 'MAD_GAN', 'TranCIRCE'] or 'TranAD' in model.name:
 		trainD, testD = convert_to_windows(trainD, model), convert_to_windows(testD, model)
 
-	plotDiff(f'{args.model}_{args.dataset}', testD[:,-1,:], trainD[:,-1,:], labels)
+
 
 	### Training phase
 	if not args.test:
+		plotDiff(f'{args.model}_{args.dataset}', testD[:,-1,:], trainD[:,-1,:], labels)
 		print(f'{color.HEADER}Training {args.model} on {args.dataset}{color.ENDC}')
-		num_epochs = 150; e = epoch + 1; start = time()
+		num_epochs = 50; e = epoch + 1; start = time()
 		for e in tqdm(list(range(epoch+1, epoch+num_epochs+1))):
+			train_loader, test_loader, labels = load_dataset(args.dataset, 5)
+			## Prepare data
+			trainD, testD = next(iter(train_loader)), next(iter(test_loader))
+			trainO, testO = trainD, testD
+			if model.name in ['Attention', 'DAGMM', 'USAD', 'MSCRED', 'CAE_M', 'GDN', 'MTAD_GAT', 'MAD_GAN', 'TranCIRCE'] or 'TranAD' in model.name:
+				trainD, testD = convert_to_windows(trainD, model), convert_to_windows(testD, model)
 			lossT, lr = backprop(e, model, trainD, trainO, optimizer, scheduler, dataTest=testD)
 			accuracy_list.append((lossT, lr))
 		print(color.BOLD+'Training time: '+"{:10.4f}".format(time()-start)+' s'+color.ENDC)
@@ -406,12 +441,20 @@ if __name__ == '__main__':
 	torch.zero_grad = True
 	model.eval()
 	print(f'{color.HEADER}Testing {args.model} on {args.dataset}{color.ENDC}')
+	train_loader, test_loader, labels = load_dataset_test(args.dataset, 5)
+	## Prepare data
+	trainD, testD = next(iter(train_loader)), next(iter(test_loader))
+	trainO, testO = trainD, testD
+	if model.name in ['Attention', 'DAGMM', 'USAD', 'MSCRED', 'CAE_M', 'GDN', 'MTAD_GAT', 'MAD_GAN', 'TranCIRCE'] or 'TranAD' in model.name:
+		trainD, testD = convert_to_windows(trainD, model), convert_to_windows(testD, model)
+	plotDiff(f'{args.model}_{args.dataset}', testD[:,-1,:], trainD[:,-1,:], labels)
 	loss, y_pred = backprop(0, model, trainD, testO, optimizer, scheduler, training=False)
 
 	### Plot curves
 	if args.test:
 		if 'TranAD' in model.name: testO = torch.roll(testO, 1, 0)
 		plotter(f'{args.model}_{args.dataset}', testO, y_pred, loss, labels)
+		# plotter(f'{args.model}_{args.dataset}', testO, y_pred, loss, labels)
 
 	### Scores
 	# df = pd.DataFrame()
