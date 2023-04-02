@@ -440,14 +440,14 @@ if __name__ == '__main__':
 	### Testing phase
 	torch.zero_grad = True
 	model.eval()
-	plotDiff(f'{args.model}_{args.dataset}', testD[:,-1,:], trainD[:,-1,:], labels)
 	print(f'{color.HEADER}Testing {args.model} on {args.dataset}{color.ENDC}')
-	train_loader, test_loader, labels = load_dataset_test(args.dataset, 3)
+	train_loader, test_loader, labels = load_dataset_test(args.dataset, 5)
 	## Prepare data
 	trainD, testD = next(iter(train_loader)), next(iter(test_loader))
 	trainO, testO = trainD, testD
 	if model.name in ['Attention', 'DAGMM', 'USAD', 'MSCRED', 'CAE_M', 'GDN', 'MTAD_GAT', 'MAD_GAN', 'TranCIRCE'] or 'TranAD' in model.name:
 		trainD, testD = convert_to_windows(trainD, model), convert_to_windows(testD, model)
+	plotDiff(f'{args.model}_{args.dataset}', testD[:,-1,:], trainD[:,-1,:], labels)
 	loss, y_pred = backprop(0, model, trainD, testO, optimizer, scheduler, training=False)
 
 	### Plot curves
