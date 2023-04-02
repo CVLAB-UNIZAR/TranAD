@@ -49,7 +49,7 @@ def load_dataset(dataset, idx):
 	if dataset == 'CIRCE':
 		random_idx = random.randint(0, 199)
 		test_loader = DataLoader(loader[1][random_idx,:,:], batch_size=loader[1].shape[1])
-		labels = loader[2][idx,:,:]
+		labels = loader[2][random_idx,:,:]
 	else:
 		test_loader = DataLoader(loader[1], batch_size=loader[1].shape[0])
 		labels = loader[2]
@@ -398,6 +398,12 @@ if __name__ == '__main__':
 		print(f'{color.HEADER}Training {args.model} on {args.dataset}{color.ENDC}')
 		num_epochs = 50; e = epoch + 1; start = time()
 		for e in tqdm(list(range(epoch+1, epoch+num_epochs+1))):
+			train_loader, test_loader, labels = load_dataset(args.dataset, 5)
+			## Prepare data
+			trainD, testD = next(iter(train_loader)), next(iter(test_loader))
+			trainO, testO = trainD, testD
+			if model.name in ['Attention', 'DAGMM', 'USAD', 'MSCRED', 'CAE_M', 'GDN', 'MTAD_GAT', 'MAD_GAN', 'TranCIRCE'] or 'TranAD' in model.name:
+				trainD, testD = convert_to_windows(trainD, model), convert_to_windows(testD, model)
 			lossT, lr = backprop(e, model, trainD, trainO, optimizer, scheduler, dataTest=testD)
 			accuracy_list.append((lossT, lr))
 		print(color.BOLD+'Training time: '+"{:10.4f}".format(time()-start)+' s'+color.ENDC)
@@ -414,7 +420,7 @@ if __name__ == '__main__':
 	if args.test:
 		if 'TranAD' in model.name: testO = torch.roll(testO, 1, 0)
 		plotter(f'{args.model}_{args.dataset}', testO, y_pred, loss, labels)
-		plotter(f'{args.model}_{args.dataset}', testO, y_pred, loss, labels)
+		# plotter(f'{args.model}_{args.dataset}', testO, y_pred, loss, labels)
 
 	### Scores
 	# df = pd.DataFrame()
