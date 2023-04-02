@@ -57,6 +57,32 @@ def load_dataset(dataset, idx):
 
 	return train_loader, test_loader, labels
 
+def load_dataset_test(dataset, idx):
+	folder = os.path.join(output_folder, dataset)
+	if not os.path.exists(folder):
+		raise Exception('Processed Data not found.')
+	loader = []
+	for file in ['train', 'test', 'labels']:
+		if dataset == 'SMD': file = 'machine-1-1_' + file
+		if dataset == 'SMAP': file = 'P-1_' + file
+		if dataset == 'MSL': file = 'C-1_' + file
+		if dataset == 'UCR': file = '136_' + file
+		if dataset == 'NAB': file = 'ec2_request_latency_system_failure_' + file
+		if dataset == 'CIRCE': file = 'CIRCE_' + file
+		loader.append(np.load(os.path.join(folder, f'{file}.npy')))
+	# loader = [i[:, debug:debug+1] for i in loader]
+	if args.less: loader[0] = cut_array(0.2, loader[0])
+	train_loader = DataLoader(loader[0], batch_size=loader[0].shape[0])
+	if dataset == 'CIRCE':
+		test_loader = DataLoader(loader[1][idx,:,:], batch_size=loader[1].shape[1])
+		labels = loader[2][idx,:,:]
+	else:
+		test_loader = DataLoader(loader[1], batch_size=loader[1].shape[0])
+		labels = loader[2]
+
+
+	return train_loader, test_loader, labels
+
 
 def save_model(model, optimizer, scheduler, epoch, accuracy_list):
 	folder = f'checkpoints/{args.model}_{args.dataset}/'
@@ -391,10 +417,11 @@ if __name__ == '__main__':
 	if model.name in ['Attention', 'DAGMM', 'USAD', 'MSCRED', 'CAE_M', 'GDN', 'MTAD_GAT', 'MAD_GAN', 'TranCIRCE'] or 'TranAD' in model.name:
 		trainD, testD = convert_to_windows(trainD, model), convert_to_windows(testD, model)
 
-	plotDiff(f'{args.model}_{args.dataset}', testD[:,-1,:], trainD[:,-1,:], labels)
+
 
 	### Training phase
 	if not args.test:
+		plotDiff(f'{args.model}_{args.dataset}', testD[:,-1,:], trainD[:,-1,:], labels)
 		print(f'{color.HEADER}Training {args.model} on {args.dataset}{color.ENDC}')
 		num_epochs = 50; e = epoch + 1; start = time()
 		for e in tqdm(list(range(epoch+1, epoch+num_epochs+1))):
@@ -413,7 +440,14 @@ if __name__ == '__main__':
 	### Testing phase
 	torch.zero_grad = True
 	model.eval()
+	plotDiff(f'{args.model}_{args.dataset}', testD[:,-1,:], trainD[:,-1,:], labels)
 	print(f'{color.HEADER}Testing {args.model} on {args.dataset}{color.ENDC}')
+	train_loader, test_loader, labels = load_dataset_test(args.dataset, 3)
+	## Prepare data
+	trainD, testD = next(iter(train_loader)), next(iter(test_loader))
+	trainO, testO = trainD, testD
+	if model.name in ['Attention', 'DAGMM', 'USAD', 'MSCRED', 'CAE_M', 'GDN', 'MTAD_GAT', 'MAD_GAN', 'TranCIRCE'] or 'TranAD' in model.name:
+		trainD, testD = convert_to_windows(trainD, model), convert_to_windows(testD, model)
 	loss, y_pred = backprop(0, model, trainD, testO, optimizer, scheduler, training=False)
 
 	### Plot curves
