@@ -47,7 +47,7 @@ def load_dataset(dataset, idx):
 	if args.less: loader[0] = cut_array(0.2, loader[0])
 	train_loader = DataLoader(loader[0], batch_size=loader[0].shape[0])
 	if dataset == 'CIRCE':
-		random_idx = random.randrange(5, 45, 10)
+		random_idx = random.randrange(0, 9, 1)
 		test_loader = DataLoader(loader[1][random_idx,:,:], batch_size=loader[1].shape[1])
 		labels = loader[2][random_idx,:,:]
 	else:
