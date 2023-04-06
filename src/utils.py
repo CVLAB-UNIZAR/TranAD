@@ -114,8 +114,8 @@ def phase_syncrony(prefalta, falta):
 	pdPrefalta = pd.DataFrame(prefalta[0,:,:].detach().numpy())
 	pdFalta = pd.DataFrame(falta.detach().numpy())
 
-	lowcut  = .01
-	highcut = .5
+	lowcut  = .001
+	highcut = 0.05
 	fs = 30.
 	order = 1
 	phase = np.zeros((4000,3))
