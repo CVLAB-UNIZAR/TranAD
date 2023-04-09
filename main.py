@@ -425,26 +425,25 @@ def backprop(epoch, model, data, dataO, optimizer, optimizer2, scheduler1, sched
 					optimizer.zero_grad()
 					l1.backward(retain_graph=True)
 
-					d1 = d2[0]
-					local_bs = d1.shape[0]
-					window = d1.permute(1, 0, 2)
-					elem = window[-1, :, :].view(1, local_bs, feats)
-					z1 = model(window, elem, 1, z)
-
-					lossFalta = loss2(z1[1], elems)[0]
-					v_margin = torch.from_numpy(np.ones_like(lossFalta.detach().numpy())*0.5)
-					# 	c = torch.clamp(v_margin - (x1 - src), min=0.0) ** 2
-
-					l2 = torch.mean(loss2(z1[0], elem)[0]) + torch.mean(torch.clamp(v_margin - lossFalta, min=0.0) ** 2)
-					optimizer2.zero_grad()
-					torch.autograd.set_detect_anomaly(True)
-					l2.backward(retain_graph=True)
+					if l1 <= 0.01:
+						d1 = d2[0]
+						local_bs = d1.shape[0]
+						window = d1.permute(1, 0, 2)
+						elem = window[-1, :, :].view(1, local_bs, feats)
+						z1 = model(window, elem, 1, z)
+						lossFalta = loss2(z1[1], elems)[0]
+						v_margin = torch.from_numpy(np.ones_like(lossFalta.detach().numpy())*0.5)
+						# 	c = torch.clamp(v_margin - (x1 - src), min=0.0) ** 2
+						l2 = torch.mean(loss2(z1[0], elem)[0]) + torch.mean(torch.clamp(v_margin - lossFalta, min=0.0) ** 2)
+						optimizer2.zero_grad()
+						torch.autograd.set_detect_anomaly(True)
+						l2.backward(retain_graph=True)
+						optimizer2.step()
+						l2s.append(l2.item())
 
 					optimizer.step()
-					optimizer2.step()
-
 					l1s.append(l1.item())
-					l2s.append(l2.item())
+
 			else:
 				for d1, _ in dataloader:
 					local_bs = d1.shape[0]
