@@ -477,7 +477,7 @@ def backprop(epoch, model, data, dataO, optimizer, optimizer2, scheduler1, sched
 			with torch.no_grad():
 				plotDiff(f'.', torch.abs(z-0.5)[0,:,:], torch.abs(z1-0.5)[0,:,:], labels)
 
-			loss = phase_syncrony(z, dataO)
+			loss = phase_syncrony(z, z1)
 			#loss = l(z[0], z[1])[0]
 			return loss.detach().numpy(), z.detach().numpy()[0]
 	else:
@@ -495,7 +495,7 @@ def backprop(epoch, model, data, dataO, optimizer, optimizer2, scheduler1, sched
 
 if __name__ == '__main__':
 	train_loader, test_loader, labels = load_dataset(args.dataset, 5)
-	train_loader, test_loader_test, labels = load_dataset_test(args.dataset, 5)
+	train_loader, test_loader_test, labels = load_dataset_test(args.dataset, 29)
 	if args.model in ['MERLIN']:
 		eval(f'run_{args.model.lower()}(test_loader, labels, args.dataset)')
 	model, optimizer1, optimizer2, scheduler1, scheduler2, epoch, accuracy_list = load_model(args.model, labels.shape[1])
