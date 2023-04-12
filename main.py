@@ -19,6 +19,7 @@ from torchviz import make_dot
 import dagshub
 import random
 
+
 import os
 os.environ["PATH"] += os.pathsep + 'C:/Users/jelia/anaconda3/envs/GANs/Library/bin/graphviz/'
 
