@@ -606,8 +606,8 @@ class OSContrastiveTransformer(nn.Module):
 			return x1
 		# Phase 2 - With anomaly scores
 		if phase == 1:
-			c = (x1 - src) ** 2
-			x2 = self.fcn2(self.transformer_decoder2(*self.encode(src, c, tgt)))
+			c = torch.zeros_like(src)
+			x2 = self.fcn2(self.transformer_decoder1(*self.encode(src, c, tgt)))
 			return x1, x2
 
 		# # Phase 2 - With anomaly scores

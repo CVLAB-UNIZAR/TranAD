@@ -103,9 +103,9 @@ def load_model(modelname, dims):
 	import src.models
 	model_class = getattr(src.models, modelname)
 	model = model_class(dims).double()
-	optimizer1 = torch.optim.AdamW(list(model.transformer_encoder.parameters()) + list(model.transformer_decoder1.parameters()) +
-								   list(model.fcn1.parameters()), lr=model.lr, weight_decay=1e-5)
-	optimizer2 = torch.optim.AdamW(list(model.transformer_decoder2.parameters()) + list(model.fcn2.parameters()), lr=model.lr, weight_decay=1e-5)
+	optimizer1 = torch.optim.AdamW(list(model.transformer_encoder.parameters()) + list(model.transformer_decoder1.parameters())+ list(model.transformer_decoder2.parameters()) +
+								   list(model.fcn1.parameters())+ list(model.fcn2.parameters()), lr=model.lr, weight_decay=1e-5)
+	optimizer2 = torch.optim.AdamW(list(model.fcn2.parameters()), lr=model.lr, weight_decay=1e-5)
 	scheduler1 = torch.optim.lr_scheduler.StepLR(optimizer1, 5, 0.9)
 	scheduler2 = torch.optim.lr_scheduler.StepLR(optimizer2, 5, 0.9)
 	fname = f'checkpoints/{args.model}_{args.dataset}/model.ckpt'
@@ -416,36 +416,37 @@ def backprop(epoch, model, data, dataO, optimizer, optimizer2, scheduler1, sched
 			if dataTest is not None:
 				for d1, d2 in zip(dataloader, dataloader_test):
 					prefalta = d1[0]
+					if phase == 0:
+						local_bs = prefalta.shape[0]
+						window = prefalta.permute(1, 0, 2)
+						elem = window[-1, :, :].view(1, local_bs, feats)
+						windowClone = window.clone()
+						elemClone = elem.clone()
+						z = model(window, elem, 0)
+						zclone = z.clone()
+						l1 = torch.mean(loss1(z, elem)[0])
+						optimizer.zero_grad()
+						l1.backward(retain_graph=True)
+						optimizer.step()
+						l1s.append(l1.item())
 
-					local_bs = prefalta.shape[0]
-					window = prefalta.permute(1, 0, 2)
-					elem = window[-1, :, :].view(1, local_bs, feats)
-					windowClone = window.clone()
-					elemClone = elem.clone()
-					z = model(window, elem, 0)
-					l1 = torch.mean(loss1(z, elem)[0])
-					optimizer.zero_grad()
-					l1.backward(retain_graph=True)
+					if phase == 1:
+						falta = d2[0]
+						local_bs = falta.shape[0]
+						window2 = falta.permute(1, 0, 2)
+						elem_falta = window2[-1, :, :].view(1, local_bs, feats)
+						z1 = model(window2, elem_falta, 1)
 
-					falta = d2[0]
-					local_bs = falta.shape[0]
-					window2 = falta.permute(1, 0, 2)
-					elem_falta = window2[-1, :, :].view(1, local_bs, feats)
-					z1 = model(windowClone, elem_falta, 1, z.clone())
+						lossFalta = loss2(z1[1], z1[1])[0]
+						v_margin = torch.from_numpy(np.ones_like(lossFalta.detach().numpy())*0.5)
+						# 	c = torch.clamp(v_margin - (x1 - src), min=0.0) ** 2
 
-					lossFalta = loss2(z1[1], z.clone())[0]
-					v_margin = torch.from_numpy(np.ones_like(lossFalta.detach().numpy())*0)
-					# 	c = torch.clamp(v_margin - (x1 - src), min=0.0) ** 2
+						l2 = torch.mean(loss2(z1[1], elem_falta)[0]) + torch.mean(torch.clamp(v_margin - lossFalta, min=0.0) ** 2)
+						optimizer2.zero_grad()
+						l2.backward(retain_graph=True)
 
-					l2 = torch.mean(loss2(z1[1], elem_falta)[0]) + torch.mean(torch.clamp(v_margin - lossFalta, min=0.0) ** 2)
-					optimizer2.zero_grad()
-					l2.backward(retain_graph=True)
-
-					optimizer.step()
-					optimizer2.step()
-
-					l1s.append(l1.item())
-					l2s.append(l2.item())
+						optimizer2.step()
+						l2s.append(l2.item())
 			else:
 				for d1, _ in dataloader:
 					local_bs = d1.shape[0]
@@ -497,7 +498,7 @@ def backprop(epoch, model, data, dataO, optimizer, optimizer2, scheduler1, sched
 
 if __name__ == '__main__':
 	train_loader, test_loader, labels = load_dataset(args.dataset, 5)
-	train_loader, test_loader_test, labels = load_dataset_test(args.dataset, 4)
+	train_loader, test_loader_test, labels = load_dataset_test(args.dataset, 5)
 	if args.model in ['MERLIN']:
 		eval(f'run_{args.model.lower()}(test_loader, labels, args.dataset)')
 	model, optimizer1, optimizer2, scheduler1, scheduler2, epoch, accuracy_list = load_model(args.model, labels.shape[1])
@@ -514,8 +515,14 @@ if __name__ == '__main__':
 	### Training phase
 	if not args.test:
 		print(f'{color.HEADER}Training {args.model} on {args.dataset}{color.ENDC}')
-		num_epochs = 150; e = epoch + 1; start = time()
+		num_epochs = 50; e = epoch + 1; start = time()
+		num_epochs2 = 150
 		for e in tqdm(list(range(epoch+1, epoch+num_epochs+1))):
+			phase = 0
+			lossT, lr = backprop(e, model, trainD, trainO, optimizer1, optimizer2, scheduler1, scheduler2, dataTest=testD)
+			accuracy_list.append((lossT, lr))
+		for e in tqdm(list(range(epoch+1, epoch+num_epochs2+1))):
+			phase = 1
 			lossT, lr = backprop(e, model, trainD, trainO, optimizer1, optimizer2, scheduler1, scheduler2, dataTest=testD)
 			accuracy_list.append((lossT, lr))
 		print(color.BOLD+'Training time: '+"{:10.4f}".format(time()-start)+' s'+color.ENDC)
