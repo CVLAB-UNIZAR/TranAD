@@ -431,17 +431,21 @@ def backprop(epoch, model, data, dataO, optimizer, optimizer2, scheduler1, sched
 						l1s.append(l1.item())
 
 					if phase == 1:
+						prefalta = d1[0]
+						local_bs = prefalta.shape[0]
+						window = prefalta.permute(1, 0, 2)
+						elem = window[-1, :, :].view(1, local_bs, feats)
 						falta = d2[0]
 						local_bs = falta.shape[0]
 						window2 = falta.permute(1, 0, 2)
 						elem_falta = window2[-1, :, :].view(1, local_bs, feats)
-						z1 = model(window2, elem_falta, 1)
+						z1 = model(window, elem_falta, 1)
 
-						lossFalta = loss2(z1[1], z1[1])[0]
-						v_margin = torch.from_numpy(np.ones_like(lossFalta.detach().numpy())*0.5)
+						lossFalta = torch.mean(loss2(z1[1], elem_falta)[0])
+						v_margin = torch.from_numpy(np.asarray(np.ones_like(lossFalta.detach().numpy())*0.5))
 						# 	c = torch.clamp(v_margin - (x1 - src), min=0.0) ** 2
 
-						l2 = torch.mean(loss2(z1[1], elem_falta)[0]) + torch.mean(torch.clamp(v_margin - lossFalta, min=0.0) ** 2)
+						l2 = lossFalta + torch.mean(torch.clamp(v_margin - lossFalta, min=0.0) ** 2)
 						optimizer2.zero_grad()
 						l2.backward(retain_graph=True)
 
@@ -472,9 +476,9 @@ def backprop(epoch, model, data, dataO, optimizer, optimizer2, scheduler1, sched
 				d2 = d2[0]
 				window2 = d2.permute(1, 0, 2)
 				elem1 = window1[-1, :, :].view(1, bs, feats)
-				elem = window2[-1, :, :].view(1, bs, feats)
+				elem2 = window2[-1, :, :].view(1, bs, feats)
 				z = model(window1, elem1, 0)
-				z1 = model(window2, elem, 1, z)
+				z1 = model(window2, elem2, 1, z)
 				if isinstance(z, tuple): z = z[1]
 				if isinstance(z1, tuple): z1 = z1[1]
 			with torch.no_grad():
@@ -523,7 +527,7 @@ if __name__ == '__main__':
 			accuracy_list.append((lossT, lr))
 		for e in tqdm(list(range(epoch+1, epoch+num_epochs2+1))):
 			phase = 1
-			lossT, lr = backprop(e, model, trainD, trainO, optimizer1, optimizer2, scheduler1, scheduler2, dataTest=testD)
+			lossT, lr = backprop(e, model, trainD, testDtest, optimizer1, optimizer2, scheduler1, scheduler2, dataTest=testD)
 			accuracy_list.append((lossT, lr))
 		print(color.BOLD+'Training time: '+"{:10.4f}".format(time()-start)+' s'+color.ENDC)
 		save_model(model, optimizer1, optimizer2, scheduler1, scheduler2, e, accuracy_list)
