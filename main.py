@@ -58,6 +58,34 @@ def load_dataset(dataset, idx):
 
 	return train_loader, test_loader, labels
 
+
+def load_dataset_train_test(dataset, idx):
+	folder = os.path.join(output_folder, dataset)
+	if not os.path.exists(folder):
+		raise Exception('Processed Data not found.')
+	loader = []
+	for file in ['train', 'test', 'labels']:
+		if dataset == 'SMD': file = 'machine-1-1_' + file
+		if dataset == 'SMAP': file = 'P-1_' + file
+		if dataset == 'MSL': file = 'C-1_' + file
+		if dataset == 'UCR': file = '136_' + file
+		if dataset == 'NAB': file = 'ec2_request_latency_system_failure_' + file
+		if dataset == 'CIRCE': file = 'CIRCE_' + file
+		loader.append(np.load(os.path.join(folder, f'{file}.npy')))
+	# loader = [i[:, debug:debug+1] for i in loader]
+	if args.less: loader[0] = cut_array(0.2, loader[0])
+	train_loader = DataLoader(loader[0], batch_size=loader[0].shape[0])
+	if dataset == 'CIRCE':
+		random_idx = random.randint(0, 199)
+		test_loader_train_test = DataLoader(loader[1][random_idx,:,:], batch_size=loader[1].shape[1])
+		labels = loader[2][random_idx,:,:]
+	else:
+		test_loader_train_test = DataLoader(loader[1][idx,:,:], batch_size=loader[1].shape[0])
+		labels = loader[2][idx,:,:]
+
+
+	return train_loader, test_loader_train_test, labels
+
 def load_dataset_test(dataset, idx):
 	folder = os.path.join(output_folder, dataset)
 	if not os.path.exists(folder):
@@ -147,7 +175,7 @@ def backprop(epoch, model, data, dataO, optimizer, optimizer2, scheduler1, sched
 			return np.mean(l1s)+np.mean(l2s), optimizer.param_groups[0]['lr']
 		else:
 			ae1s = []
-			for d in data: 
+			for d in data:
 				_, x_hat, _, _ = model(d)
 				ae1s.append(x_hat)
 			ae1s = torch.stack(ae1s)
@@ -174,7 +202,7 @@ def backprop(epoch, model, data, dataO, optimizer, optimizer2, scheduler1, sched
 			return np.mean(l1s), optimizer.param_groups[0]['lr']
 		else:
 			ae1s, y_pred = [], []
-			for d in data: 
+			for d in data:
 				ae1 = model(d)
 				y_pred.append(ae1[-1])
 				ae1s.append(ae1)
@@ -223,7 +251,7 @@ def backprop(epoch, model, data, dataO, optimizer, optimizer2, scheduler1, sched
 			return np.mean(l1s)+np.mean(l2s), optimizer.param_groups[0]['lr']
 		else:
 			ae1s, ae2s, ae2ae1s = [], [], []
-			for d in data: 
+			for d in data:
 				ae1, ae2, ae2ae1 = model(d)
 				ae1s.append(ae1); ae2s.append(ae2); ae2ae1s.append(ae2ae1)
 			ae1s, ae2s, ae2ae1s = torch.stack(ae1s), torch.stack(ae2s), torch.stack(ae2ae1s)
@@ -237,7 +265,7 @@ def backprop(epoch, model, data, dataO, optimizer, optimizer2, scheduler1, sched
 		l1s = []
 		if training:
 			for i, d in enumerate(data):
-				if 'MTAD_GAT' in model.name: 
+				if 'MTAD_GAT' in model.name:
 					x, h = model(d, h if i else None)
 				else:
 					x = model(d)
@@ -250,8 +278,8 @@ def backprop(epoch, model, data, dataO, optimizer, optimizer2, scheduler1, sched
 			return np.mean(l1s), optimizer.param_groups[0]['lr']
 		else:
 			xs = []
-			for d in data: 
-				if 'MTAD_GAT' in model.name: 
+			for d in data:
+				if 'MTAD_GAT' in model.name:
 					x, h = model(d, None)
 				else:
 					x = model(d)
@@ -280,7 +308,7 @@ def backprop(epoch, model, data, dataO, optimizer, optimizer2, scheduler1, sched
 				optimizer.step()
 				# training generator
 				z, _, fake = model(d)
-				mse = msel(z, d) 
+				mse = msel(z, d)
 				gl = bcel(fake, real_label)
 				tl = gl + mse
 				tl.backward()
@@ -292,7 +320,7 @@ def backprop(epoch, model, data, dataO, optimizer, optimizer2, scheduler1, sched
 			return np.mean(gls)+np.mean(dls), optimizer.param_groups[0]['lr']
 		else:
 			outputs = []
-			for d in data: 
+			for d in data:
 				z, _, _ = model(d)
 				outputs.append(z)
 			outputs = torch.stack(outputs)
@@ -404,17 +432,19 @@ def backprop(epoch, model, data, dataO, optimizer, optimizer2, scheduler1, sched
 		loss1 = nn.MSELoss(reduction = 'none')
 		loss2 = nn.MSELoss(reduction = 'none')
 		data_x = torch.DoubleTensor(data); dataset = TensorDataset(data_x, data_x)
+		data_train_test_x = torch.DoubleTensor(dataTest); dataset_train_test = TensorDataset(data_train_test_x, data_train_test_x)
 		if dataTest is not None:
 			data_test_x = torch.DoubleTensor(dataTest); dataset_test = TensorDataset(data_test_x, data_test_x)
 		bs = model.batch if training else len(data)
 		dataloader = DataLoader(dataset, batch_size = bs)
+		dataloader_train_test = DataLoader(dataset_train_test, batch_size = bs)
 		if dataTest is not None:
 			dataloader_test = DataLoader(dataset_test, batch_size= bs)
 		n = epoch + 1; w_size = model.n_window
 		l1s, l2s = [], []
 		if training:
 			if dataTest is not None:
-				for d1, d2 in zip(dataloader, dataloader_test):
+				for d1, d2, d3 in zip(dataloader, dataloader_test, dataloader_train_test):
 					prefalta = d1[0]
 					if phase == 0:
 						local_bs = prefalta.shape[0]
@@ -425,9 +455,9 @@ def backprop(epoch, model, data, dataO, optimizer, optimizer2, scheduler1, sched
 						z = model(window, elem, 0)
 						zclone = z.clone()
 						l1 = torch.mean(loss1(z, elem)[0])
-						optimizer.zero_grad()
+						optimizer1.zero_grad()
 						l1.backward(retain_graph=True)
-						optimizer.step()
+						optimizer1.step()
 						l1s.append(l1.item())
 
 					if phase == 1:
@@ -435,7 +465,7 @@ def backprop(epoch, model, data, dataO, optimizer, optimizer2, scheduler1, sched
 						local_bs = prefalta.shape[0]
 						window = prefalta.permute(1, 0, 2)
 						elem = window[-1, :, :].view(1, local_bs, feats)
-						falta = d2[0]
+						falta = d3[0]
 						local_bs = falta.shape[0]
 						window2 = falta.permute(1, 0, 2)
 						elem_falta = window2[-1, :, :].view(1, local_bs, feats)
@@ -446,10 +476,10 @@ def backprop(epoch, model, data, dataO, optimizer, optimizer2, scheduler1, sched
 						# 	c = torch.clamp(v_margin - (x1 - src), min=0.0) ** 2
 
 						l2 = lossFalta + torch.mean(torch.clamp(v_margin - lossFalta, min=0.0) ** 2)
-						optimizer2.zero_grad()
+						optimizer1.zero_grad()
 						l2.backward(retain_graph=True)
 
-						optimizer2.step()
+						optimizer1.step()
 						l2s.append(l2.item())
 			else:
 				for d1, _ in dataloader:
@@ -502,13 +532,15 @@ def backprop(epoch, model, data, dataO, optimizer, optimizer2, scheduler1, sched
 
 if __name__ == '__main__':
 	train_loader, test_loader, labels = load_dataset(args.dataset, 5)
+	train_loader, test_loader_train_test, labels = load_dataset_train_test(args.dataset, 5)
 	train_loader, test_loader_test, labels = load_dataset_test(args.dataset, 5)
+
 	if args.model in ['MERLIN']:
 		eval(f'run_{args.model.lower()}(test_loader, labels, args.dataset)')
 	model, optimizer1, optimizer2, scheduler1, scheduler2, epoch, accuracy_list = load_model(args.model, labels.shape[1])
 
 	## Prepare data
-	trainD, testD, testDtest = next(iter(train_loader)), next(iter(test_loader)), next(iter(test_loader_test))
+	trainD, testD, testDtest,testDtraintest = next(iter(train_loader)), next(iter(test_loader)), next(iter(test_loader_test)), next(iter(test_loader_train_test))
 	trainO, testO = trainD, testD
 	if model.name in ['Attention', 'DAGMM', 'USAD', 'MSCRED', 'CAE_M', 'GDN', 'MTAD_GAT', 'MAD_GAN', 'TranCIRCE'] or 'TranAD' or 'OSContrastiveTransformer' in model.name:
 		trainD, testD = convert_to_windows(trainD, model), convert_to_windows(testD, model)
@@ -527,7 +559,8 @@ if __name__ == '__main__':
 			accuracy_list.append((lossT, lr))
 		for e in tqdm(list(range(epoch+1, epoch+num_epochs2+1))):
 			phase = 1
-			lossT, lr = backprop(e, model, trainD, testDtest, optimizer1, optimizer2, scheduler1, scheduler2, dataTest=testD)
+			train_loader, test_loader_train_test, labels = load_dataset_train_test(args.dataset, 5)
+			lossT, lr = backprop(e, model, trainD, testDtraintest, optimizer1, optimizer2, scheduler1, scheduler2, dataTest=testD)
 			accuracy_list.append((lossT, lr))
 		print(color.BOLD+'Training time: '+"{:10.4f}".format(time()-start)+' s'+color.ENDC)
 		save_model(model, optimizer1, optimizer2, scheduler1, scheduler2, e, accuracy_list)
