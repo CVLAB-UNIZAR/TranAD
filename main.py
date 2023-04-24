@@ -46,72 +46,21 @@ def load_dataset(dataset, idx):
 		loader.append(np.load(os.path.join(folder, f'{file}.npy')))
 	# loader = [i[:, debug:debug+1] for i in loader]
 	if args.less: loader[0] = cut_array(0.2, loader[0])
-	train_loader = DataLoader(loader[0], batch_size=loader[0].shape[0])
+	train_PF_loader = DataLoader(loader[0], batch_size=loader[0].shape[0])
 	if dataset == 'CIRCE':
 		random_idx = random.randint(0, 199)
-		test_loader = DataLoader(loader[1][random_idx,:,:], batch_size=loader[1].shape[1])
-		labels = loader[2][random_idx,:,:]
+		train_F_Fase2_loader = DataLoader(loader[1][random_idx,:,:], batch_size=loader[1].shape[1])
+		labels_train = loader[2][random_idx,:,:]
+
+		test_loader_F = DataLoader(loader[1][idx, :, :], batch_size=loader[1].shape[1])
+		labels_test = loader[2][idx,:,:]
 	else:
-		test_loader = DataLoader(loader[1][idx,:,:], batch_size=loader[1].shape[0])
+		test_loader = DataLoader(loader[1][idx, :, :], batch_size=loader[1].shape[0])
 		labels = loader[2]
 
 
-	return train_loader, test_loader, labels
+	return train_PF_loader, train_F_Fase2_loader, labels_train, test_loader_F, labels_test
 
-
-def load_dataset_train_test(dataset, idx):
-	folder = os.path.join(output_folder, dataset)
-	if not os.path.exists(folder):
-		raise Exception('Processed Data not found.')
-	loader = []
-	for file in ['train', 'test', 'labels']:
-		if dataset == 'SMD': file = 'machine-1-1_' + file
-		if dataset == 'SMAP': file = 'P-1_' + file
-		if dataset == 'MSL': file = 'C-1_' + file
-		if dataset == 'UCR': file = '136_' + file
-		if dataset == 'NAB': file = 'ec2_request_latency_system_failure_' + file
-		if dataset == 'CIRCE': file = 'CIRCE_' + file
-		loader.append(np.load(os.path.join(folder, f'{file}.npy')))
-	# loader = [i[:, debug:debug+1] for i in loader]
-	if args.less: loader[0] = cut_array(0.2, loader[0])
-	train_loader = DataLoader(loader[0], batch_size=loader[0].shape[0])
-	if dataset == 'CIRCE':
-		random_idx = random.randint(0, 199)
-		test_loader_train_test = DataLoader(loader[1][random_idx,:,:], batch_size=loader[1].shape[1])
-		labels = loader[2][random_idx,:,:]
-	else:
-		test_loader_train_test = DataLoader(loader[1][idx,:,:], batch_size=loader[1].shape[0])
-		labels = loader[2][idx,:,:]
-
-
-	return train_loader, test_loader_train_test, labels
-
-def load_dataset_test(dataset, idx):
-	folder = os.path.join(output_folder, dataset)
-	if not os.path.exists(folder):
-		raise Exception('Processed Data not found.')
-	loader = []
-	for file in ['train', 'test', 'labels']:
-		if dataset == 'SMD': file = 'machine-1-1_' + file
-		if dataset == 'SMAP': file = 'P-1_' + file
-		if dataset == 'MSL': file = 'C-1_' + file
-		if dataset == 'UCR': file = '136_' + file
-		if dataset == 'NAB': file = 'ec2_request_latency_system_failure_' + file
-		if dataset == 'CIRCE': file = 'CIRCE_' + file
-		loader.append(np.load(os.path.join(folder, f'{file}.npy')))
-	# loader = [i[:, debug:debug+1] for i in loader]
-	if args.less: loader[0] = cut_array(0.2, loader[0])
-	train_loader = DataLoader(loader[0], batch_size=loader[0].shape[0])
-	if dataset == 'CIRCE':
-		random_idx = random.randint(0, 199)
-		test_loader_test = DataLoader(loader[1][idx,:,:], batch_size=loader[1].shape[1])
-		labels = loader[2][idx,:,:]
-	else:
-		test_loader_test = DataLoader(loader[1][idx,:,:], batch_size=loader[1].shape[0])
-		labels = loader[2][idx,:,:]
-
-
-	return train_loader, test_loader_test, labels
 
 def save_model(model, optimizer1, optimizer2, scheduler1, scheduler2, epoch, accuracy_list):
 	folder = f'checkpoints/{args.model}_{args.dataset}/'
@@ -444,7 +393,7 @@ def backprop(epoch, model, data, dataO, optimizer, optimizer2, scheduler1, sched
 		l1s, l2s = [], []
 		if training:
 			if dataTest is not None:
-				for d1, d2, d3 in zip(dataloader, dataloader_test, dataloader_train_test):
+				for d1, d2 in zip(dataloader, dataloader_test):
 					prefalta = d1[0]
 					if phase == 0:
 						local_bs = prefalta.shape[0]
@@ -465,7 +414,7 @@ def backprop(epoch, model, data, dataO, optimizer, optimizer2, scheduler1, sched
 						local_bs = prefalta.shape[0]
 						window = prefalta.permute(1, 0, 2)
 						elem = window[-1, :, :].view(1, local_bs, feats)
-						falta = d3[0]
+						falta = d2[1]
 						local_bs = falta.shape[0]
 						window2 = falta.permute(1, 0, 2)
 						elem_falta = window2[-1, :, :].view(1, local_bs, feats)
@@ -512,7 +461,8 @@ def backprop(epoch, model, data, dataO, optimizer, optimizer2, scheduler1, sched
 				if isinstance(z, tuple): z = z[1]
 				if isinstance(z1, tuple): z1 = z1[1]
 			with torch.no_grad():
-				plotDiff(f'.', torch.abs(z-0.5)[0,:,:], torch.abs(z1-0.5)[0,:,:], labels)
+				#plotDiff(f'.', torch.abs(z-0.5)[0,:,:], torch.abs(z1-0.5)[0,:,:], labels_train)
+				plotDiff(f'.', torch.abs(z)[0,:,:], torch.abs(z1)[0,:,:], labels_train)
 
 			loss = phase_syncrony(z, z1[0,:,:])
 			#loss = l(z, z1[0,:,:])[0]
@@ -531,36 +481,35 @@ def backprop(epoch, model, data, dataO, optimizer, optimizer2, scheduler1, sched
 			return loss.detach().numpy(), y_pred.detach().numpy()
 
 if __name__ == '__main__':
-	train_loader, test_loader, labels = load_dataset(args.dataset, 5)
-	train_loader, test_loader_train_test, labels = load_dataset_train_test(args.dataset, 5)
-	train_loader, test_loader_test, labels = load_dataset_test(args.dataset, 5)
+
+	train_PF_loader, train_F_Fase2_loader, labels_train, test_loader_F, labels_test = load_dataset(args.dataset, 6)
+
 
 	if args.model in ['MERLIN']:
 		eval(f'run_{args.model.lower()}(test_loader, labels, args.dataset)')
-	model, optimizer1, optimizer2, scheduler1, scheduler2, epoch, accuracy_list = load_model(args.model, labels.shape[1])
+	model, optimizer1, optimizer2, scheduler1, scheduler2, epoch, accuracy_list = load_model(args.model, labels_train.shape[1])
 
 	## Prepare data
-	trainD, testD, testDtest,testDtraintest = next(iter(train_loader)), next(iter(test_loader)), next(iter(test_loader_test)), next(iter(test_loader_train_test))
-	trainO, testO = trainD, testD
+	PF, F, F_test = next(iter(train_PF_loader)), next(iter(train_F_Fase2_loader)), next(iter(test_loader_F))
 	if model.name in ['Attention', 'DAGMM', 'USAD', 'MSCRED', 'CAE_M', 'GDN', 'MTAD_GAT', 'MAD_GAN', 'TranCIRCE'] or 'TranAD' or 'OSContrastiveTransformer' in model.name:
-		trainD, testD = convert_to_windows(trainD, model), convert_to_windows(testD, model)
-
-	plotDiff(f'{args.model}_{args.dataset}', testD[:,-1,:], trainD[:,-1,:], labels)
+		vPF_train, vF_train = convert_to_windows(PF, model), convert_to_windows(F, model)
+	plotDiff(f'{args.model}_{args.dataset}', vF_train[:,-1,:], vPF_train[:,-1,:], labels_test)
 
 
 	### Training phase
 	if not args.test:
 		print(f'{color.HEADER}Training {args.model} on {args.dataset}{color.ENDC}')
 		num_epochs = 50; e = epoch + 1; start = time()
-		num_epochs2 = 150
+		num_epochs2 =50
 		for e in tqdm(list(range(epoch+1, epoch+num_epochs+1))):
 			phase = 0
-			lossT, lr = backprop(e, model, trainD, trainO, optimizer1, optimizer2, scheduler1, scheduler2, dataTest=testD)
+			lossT, lr = backprop(e, model, vPF_train, PF, optimizer1, optimizer2, scheduler1, scheduler2, dataTest=vF_train)
 			accuracy_list.append((lossT, lr))
 		for e in tqdm(list(range(epoch+1, epoch+num_epochs2+1))):
 			phase = 1
-			train_loader, test_loader_train_test, labels = load_dataset_train_test(args.dataset, 5)
-			lossT, lr = backprop(e, model, trainD, testDtraintest, optimizer1, optimizer2, scheduler1, scheduler2, dataTest=testD)
+			train_PF_loader, train_F_Fase2_loader, labels_train, test_loader_F, labels_test = load_dataset(args.dataset, 5)
+			PF, F, vF_test = next(iter(train_PF_loader)), next(iter(train_F_Fase2_loader)), next(iter(test_loader_F))
+			lossT, lr = backprop(e, model, vPF_train, F, optimizer1, optimizer2, scheduler1, scheduler2, dataTest=vF_train)
 			accuracy_list.append((lossT, lr))
 		print(color.BOLD+'Training time: '+"{:10.4f}".format(time()-start)+' s'+color.ENDC)
 		save_model(model, optimizer1, optimizer2, scheduler1, scheduler2, e, accuracy_list)
@@ -570,12 +519,12 @@ if __name__ == '__main__':
 	torch.zero_grad = True
 	model.eval()
 	print(f'{color.HEADER}Testing {args.model} on {args.dataset}{color.ENDC}')
-	loss, y_pred = backprop(0, model, trainD, testDtest, optimizer1, optimizer2, scheduler1, scheduler2, training=False, dataTest=testD)
+	loss, y_pred = backprop(0, model, vPF_train, F_test, optimizer1, optimizer2, scheduler1, scheduler2, training=False, dataTest=vF_train)
 
 	### Plot curves
 	if args.test:
-		if 'TranAD' in model.name: testO = torch.roll(testO, 1, 0)
-		plotter(f'{args.model}_{args.dataset}', trainO, y_pred, loss, labels)
+		if 'OSContrastiveTransformer' in model.name: testO = torch.roll(F, 1, 0)
+		plotter(f'{args.model}_{args.dataset}', PF, y_pred, loss, labels_test)
 
 	### Scores
 	# df = pd.DataFrame()
