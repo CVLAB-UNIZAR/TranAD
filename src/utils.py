@@ -5,6 +5,7 @@ import pandas as pd
 import numpy as np
 import torch
 from scipy.signal import hilbert, butter, filtfilt
+import scipy as sp
 from scipy.fftpack import fft,fftfreq,rfft,irfft,ifft
 
 class color:
@@ -130,3 +131,30 @@ def phase_syncrony(prefalta, falta):
 		phase[:,i] = 1-np.sin(np.abs(al1-al2)/2)
 
 	return torch.tensor(phase)
+
+def dtw(s, t):
+	n, m = len(s), len(t)
+	dtw_matrix = np.zeros((n+1, m+1))
+	for i in range(n+1):
+		for j in range(m+1):
+			dtw_matrix[i, j] = np.inf
+	dtw_matrix[0, 0] = 0
+
+	for i in range(1, n+1):
+		for j in range(1, m+1):
+			cost = abs(s[i-1] - t[j-1])
+			# take last min from a square box
+			last_min = np.min([dtw_matrix[i-1, j], dtw_matrix[i, j-1], dtw_matrix[i-1, j-1]])
+			dtw_matrix[i, j] = cost + last_min
+	return dtw_matrix
+
+def energy(x):
+	# Rearrange x into 10 30 second windows
+	x = sp.reshape(x, (-1, 30))
+
+	# Calculate power over each window [J/s]
+	p = sp.sum(x*x, 1)/x.size
+
+	# Calculate energy [J = J/s * 30 second]
+	e = p*x.size
+	return e

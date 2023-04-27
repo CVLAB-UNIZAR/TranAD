@@ -462,9 +462,12 @@ def backprop(epoch, model, data, dataO, optimizer, optimizer2, scheduler1, sched
 				if isinstance(z1, tuple): z1 = z1[1]
 			with torch.no_grad():
 				#plotDiff(f'.', torch.abs(z-0.5)[0,:,:], torch.abs(z1-0.5)[0,:,:], labels_train)
-				plotDiff(f'.', torch.abs(z)[0,:,:], torch.abs(z1)[0,:,:], labels_train)
+				#plotDiff(f'.', torch.abs(z)[0,:,:], torch.abs(z1)[0,:,:], labels_train)
+				plotDiff(f'.', torch.abs(energy(z)[0,:,:], torch.abs(energy(z1)[0,:,:], labels_train)
 
-			loss = phase_syncrony(z, z1[0,:,:])
+				loss = torch.abs(energy(z)[0,:,:] - torch.abs(energy(z1)[0,:,:]
+			#loss = phase_syncrony(z, z1[0,:,:])
+			#loss = dtw(z, z1.numpy())
 			#loss = l(z, z1[0,:,:])[0]
 			return loss.detach().numpy(), z1.detach().numpy()[0]
 	else:
