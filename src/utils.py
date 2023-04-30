@@ -148,13 +148,26 @@ def dtw(s, t):
 			dtw_matrix[i, j] = cost + last_min
 	return dtw_matrix
 
-def energy(x):
-	# Rearrange x into 10 30 second windows
-	x = sp.reshape(x, (-1, 30))
+def energy(prefalta, falta, s):
+	pdPrefalta = pd.DataFrame(prefalta[0,:,:].detach().numpy())
+	pdFalta = pd.DataFrame(falta[0,:,:].detach().numpy())
+	energy = np.zeros((4000,3))
+	d1w = np.zeros(s)
+	d2w = np.zeros(s)
+	p1 = np.zeros((4000,3))
+	p2 = np.zeros((4000,3))
+	diffenergy = np.zeros((1,3))
 
-	# Calculate power over each window [J/s]
-	p = sp.sum(x*x, 1)/x.size
+	for m in range(4000-s):
 
-	# Calculate energy [J = J/s * 30 second]
-	e = p*x.size
-	return e
+		d1w = pdPrefalta[m:m+s-1]
+		d2w = pdFalta[m:m+s-1]
+
+		p1 = sp.sum(d1w*d1w)/d1w.size
+		p2 = sp.sum(d2w*d2w)/d2w.size
+		e1 = p1*d1w.size
+		e2 = p2*d2w.size
+		diffenergy = np.abs(e1-e2)
+		energy[m] = diffenergy
+
+	return torch.tensor(energy)

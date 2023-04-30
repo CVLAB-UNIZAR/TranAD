@@ -18,7 +18,11 @@ from pprint import pprint
 from torchviz import make_dot
 import dagshub
 import random
+from scipy.spatial.distance import euclidean
+from fastdtw import fastdtw
 
+import numpy as np
+import matplotlib.pyplot as plt
 
 import os
 os.environ["PATH"] += os.pathsep + 'C:/Users/jelia/anaconda3/envs/GANs/Library/bin/graphviz/'
@@ -421,14 +425,14 @@ def backprop(epoch, model, data, dataO, optimizer, optimizer2, scheduler1, sched
 						z1 = model(window, elem_falta, 1)
 
 						lossFalta = torch.mean(loss2(z1[1], elem_falta)[0])
-						v_margin = torch.from_numpy(np.asarray(np.ones_like(lossFalta.detach().numpy())*0.5))
+						v_margin = torch.from_numpy(np.asarray(np.ones_like(lossFalta.detach().numpy())*0.4))
 						# 	c = torch.clamp(v_margin - (x1 - src), min=0.0) ** 2
 
 						l2 = lossFalta + torch.mean(torch.clamp(v_margin - lossFalta, min=0.0) ** 2)
-						optimizer1.zero_grad()
+						optimizer2.zero_grad()
 						l2.backward(retain_graph=True)
 
-						optimizer1.step()
+						optimizer2.step()
 						l2s.append(l2.item())
 			else:
 				for d1, _ in dataloader:
@@ -462,10 +466,11 @@ def backprop(epoch, model, data, dataO, optimizer, optimizer2, scheduler1, sched
 				if isinstance(z1, tuple): z1 = z1[1]
 			with torch.no_grad():
 				#plotDiff(f'.', torch.abs(z-0.5)[0,:,:], torch.abs(z1-0.5)[0,:,:], labels_train)
-				#plotDiff(f'.', torch.abs(z)[0,:,:], torch.abs(z1)[0,:,:], labels_train)
-				plotDiff(f'.', torch.abs(energy(z)[0,:,:], torch.abs(energy(z1)[0,:,:], labels_train)
+				plotDiff(f'.', torch.abs(z)[0,:,:], torch.abs(z1)[0,:,:], labels_train)
+				#plotDiff(f'.', torch.abs(energy(z))[0,:,:], torch.abs(energy(z1))[0,:,:], labels_train)
 
-				loss = torch.abs(energy(z)[0,:,:] - torch.abs(energy(z1)[0,:,:]
+			#with torch.no_grad():
+			loss=energy(z,z1, 10)
 			#loss = phase_syncrony(z, z1[0,:,:])
 			#loss = dtw(z, z1.numpy())
 			#loss = l(z, z1[0,:,:])[0]
@@ -485,7 +490,7 @@ def backprop(epoch, model, data, dataO, optimizer, optimizer2, scheduler1, sched
 
 if __name__ == '__main__':
 
-	train_PF_loader, train_F_Fase2_loader, labels_train, test_loader_F, labels_test = load_dataset(args.dataset, 6)
+	train_PF_loader, train_F_Fase2_loader, labels_train, test_loader_F, labels_test = load_dataset(args.dataset, 5)
 
 
 	if args.model in ['MERLIN']:
