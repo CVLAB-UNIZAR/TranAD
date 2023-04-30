@@ -425,14 +425,14 @@ def backprop(epoch, model, data, dataO, optimizer, optimizer2, scheduler1, sched
 						z1 = model(window, elem_falta, 1)
 
 						lossFalta = torch.mean(loss2(z1[1], elem_falta)[0])
-						v_margin = torch.from_numpy(np.asarray(np.ones_like(lossFalta.detach().numpy())*0.4))
+						v_margin = torch.from_numpy(np.asarray(np.ones_like(lossFalta.detach().numpy())*0.5))
 						# 	c = torch.clamp(v_margin - (x1 - src), min=0.0) ** 2
 
 						l2 = lossFalta + torch.mean(torch.clamp(v_margin - lossFalta, min=0.0) ** 2)
-						optimizer2.zero_grad()
+						optimizer1.zero_grad()
 						l2.backward(retain_graph=True)
 
-						optimizer2.step()
+						optimizer1.step()
 						l2s.append(l2.item())
 			else:
 				for d1, _ in dataloader:
@@ -470,8 +470,9 @@ def backprop(epoch, model, data, dataO, optimizer, optimizer2, scheduler1, sched
 				#plotDiff(f'.', torch.abs(energy(z))[0,:,:], torch.abs(energy(z1))[0,:,:], labels_train)
 
 			#with torch.no_grad():
-			loss=energy(z,z1, 10)
-			#loss = phase_syncrony(z, z1[0,:,:])
+			#loss = diference_ponderate (z,z1)
+			#loss = energy(z,z1, 10)
+			loss = phase_syncrony(z, z1[0,:,:])
 			#loss = dtw(z, z1.numpy())
 			#loss = l(z, z1[0,:,:])[0]
 			return loss.detach().numpy(), z1.detach().numpy()[0]
@@ -515,7 +516,7 @@ if __name__ == '__main__':
 			accuracy_list.append((lossT, lr))
 		for e in tqdm(list(range(epoch+1, epoch+num_epochs2+1))):
 			phase = 1
-			train_PF_loader, train_F_Fase2_loader, labels_train, test_loader_F, labels_test = load_dataset(args.dataset, 5)
+			train_PF_loader, train_F_Fase2_loader, labels_train, test_loader_F, labels_test = load_dataset(args.dataset, 4)
 			PF, F, vF_test = next(iter(train_PF_loader)), next(iter(train_F_Fase2_loader)), next(iter(test_loader_F))
 			lossT, lr = backprop(e, model, vPF_train, F, optimizer1, optimizer2, scheduler1, scheduler2, dataTest=vF_train)
 			accuracy_list.append((lossT, lr))

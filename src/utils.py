@@ -171,3 +171,19 @@ def energy(prefalta, falta, s):
 		energy[m] = diffenergy
 
 	return torch.tensor(energy)
+
+def diference_ponderate(prefalta, falta):
+	pdPrefalta = pd.DataFrame(prefalta[0,:,:].detach().numpy())
+	pdFalta = pd.DataFrame(falta[0,:,:].detach().numpy())
+	diff = np.zeros((4000,3))
+	media = np.zeros((4000,3))
+	maximum = np.zeros((4000,3))
+	diffponderate = np.zeros((4000,3))
+
+	diff =  pdFalta - pdPrefalta
+
+
+	media = (pdPrefalta + pdFalta)/2
+	diffponderate = diff / media
+	diffponderate = torch.tensor(diffponderate.values)
+	return torch.tensor(diffponderate)
