@@ -5,6 +5,7 @@ import pandas as pd
 import numpy as np
 import torch
 from scipy.signal import hilbert, butter, filtfilt
+import scipy as sp
 from scipy.fftpack import fft,fftfreq,rfft,irfft,ifft
 
 class color:
@@ -130,3 +131,43 @@ def phase_syncrony(prefalta, falta):
 		phase[:,i] = 1-np.sin(np.abs(al1-al2)/2)
 
 	return torch.tensor(phase)
+
+def dtw(s, t):
+	n, m = len(s), len(t)
+	dtw_matrix = np.zeros((n+1, m+1))
+	for i in range(n+1):
+		for j in range(m+1):
+			dtw_matrix[i, j] = np.inf
+	dtw_matrix[0, 0] = 0
+
+	for i in range(1, n+1):
+		for j in range(1, m+1):
+			cost = abs(s[i-1] - t[j-1])
+			# take last min from a square box
+			last_min = np.min([dtw_matrix[i-1, j], dtw_matrix[i, j-1], dtw_matrix[i-1, j-1]])
+			dtw_matrix[i, j] = cost + last_min
+	return dtw_matrix
+
+def energy(prefalta, falta, s):
+	pdPrefalta = pd.DataFrame(prefalta[0,:,:].detach().numpy())
+	pdFalta = pd.DataFrame(falta[0,:,:].detach().numpy())
+	energy = np.zeros((4000,3))
+	d1w = np.zeros(s)
+	d2w = np.zeros(s)
+	p1 = np.zeros((4000,3))
+	p2 = np.zeros((4000,3))
+	diffenergy = np.zeros((1,3))
+
+	for m in range(4000-s):
+
+		d1w = pdPrefalta[m:m+s-1]
+		d2w = pdFalta[m:m+s-1]
+
+		p1 = sp.sum(d1w*d1w)/d1w.size
+		p2 = sp.sum(d2w*d2w)/d2w.size
+		e1 = p1*d1w.size
+		e2 = p2*d2w.size
+		diffenergy = np.abs(e1-e2)
+		energy[m] = diffenergy
+
+	return torch.tensor(energy)
