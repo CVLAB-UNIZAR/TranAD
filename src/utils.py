@@ -6,6 +6,7 @@ import numpy as np
 import torch
 from scipy.signal import hilbert, butter, filtfilt
 import scipy as sp
+from scipy.spatial import distance
 from scipy.fftpack import fft,fftfreq,rfft,irfft,ifft
 
 class color:
@@ -175,15 +176,64 @@ def energy(prefalta, falta, s):
 def diference_ponderate(prefalta, falta):
 	pdPrefalta = pd.DataFrame(prefalta[0,:,:].detach().numpy())
 	pdFalta = pd.DataFrame(falta[0,:,:].detach().numpy())
+	Prefaltadesplazmax = np.zeros((4000,3))
+	Prefaltadesplazmax = pdPrefalta
+	Faltadesplazmax = np.zeros((4000,3))
+	Faltadesplazmax = pdFalta
 	diff = np.zeros((4000,3))
 	media = np.zeros((4000,3))
 	maximum = np.zeros((4000,3))
 	diffponderate = np.zeros((4000,3))
+	diffponderateumbral = np.zeros((4000,3))
+	umbral = 0.7
+	Prefaltadesplazmax.loc[Prefaltadesplazmax[0] < umbral, 0] += umbral
+	Prefaltadesplazmax.loc[Prefaltadesplazmax[1] < umbral, 1] += umbral
+	Prefaltadesplazmax.loc[Prefaltadesplazmax[2] < umbral, 2] += umbral
 
-	diff =  pdFalta - pdPrefalta
+	Faltadesplazmax.loc[Faltadesplazmax[0] < umbral, 0] += umbral
+	Faltadesplazmax.loc[Faltadesplazmax[1] < umbral, 1] += umbral
+	Faltadesplazmax.loc[Faltadesplazmax[2] < umbral, 2] += umbral
 
 
-	media = (pdPrefalta + pdFalta)/2
-	diffponderate = diff / media
+	diff = np.abs((np.abs(Prefaltadesplazmax)) - (np.abs(Faltadesplazmax)))
+	media = np.abs(np.abs(Prefaltadesplazmax) + np.abs(Faltadesplazmax))/2
+
+	diffponderate = (diff / media)
+	diffponderateoriginal = torch.tensor(diffponderate.values)
 	diffponderate = torch.tensor(diffponderate.values)
+	s = 1
+	p =2
+	umbralpond = 0.5
+
+	for m0 in range(4000-s):
+		if diffponderate[m0,0] > umbralpond:
+			diffponderate[m0:m0+s,0] = 0
+			m0=m0+s
+		else:
+			diffponderate[m0:m0+p,0] = 1
+			m0=m0+p
+	for m1 in range(4000-s):
+		if diffponderate[m1,1] >umbralpond:
+			diffponderate[m1:m1+s,1] = 0
+			m1=m1+s
+		else:
+			diffponderate[m1:m1+p,1] = 1
+			m1=m1+p
+	for m2 in range(4000-s):
+		if diffponderate[m2,2] > umbralpond:
+			diffponderate[m2:m2+s,2] = 0
+			m2=m2+s
+		else:
+			diffponderate[m2:m2+p,2] = 1
+			m2=m2+p
 	return torch.tensor(diffponderate)
+	#return torch.tensor(diffponderateoriginal)
+
+def compute_distance (prefalta, falta, metric):
+	pdPrefalta = (pd.DataFrame(prefalta[0,:,:].detach().numpy()))
+	pdFalta = pd.DataFrame(falta[0,:,:].detach().numpy())
+	#eucliddist = np.zeros((4000,3))
+	eucliddist = distance.cdist(pdPrefalta, pdFalta, 'metric', p=10)
+	#eucliddist[1] = distance.pdist(pdPrefalta[1], pdFalta[1])
+	#eucliddist[2] = distance.pdist(pdPrefalta[2], pdFalta[2])
+	return torch.tensor(eucliddist)

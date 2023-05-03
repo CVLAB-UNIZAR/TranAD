@@ -467,15 +467,17 @@ def backprop(epoch, model, data, dataO, optimizer, optimizer2, scheduler1, sched
 			with torch.no_grad():
 				#plotDiff(f'.', torch.abs(z-0.5)[0,:,:], torch.abs(z1-0.5)[0,:,:], labels_train)
 				plotDiff(f'.', torch.abs(z)[0,:,:], torch.abs(z1)[0,:,:], labels_train)
+				y_pred = z1.clone()
 				#plotDiff(f'.', torch.abs(energy(z))[0,:,:], torch.abs(energy(z1))[0,:,:], labels_train)
 
 			#with torch.no_grad():
-			#loss = diference_ponderate (z,z1)
-			#loss = energy(z,z1, 10)
-			loss = phase_syncrony(z, z1[0,:,:])
+			loss = diference_ponderate (z,z1)
+			#loss = energy(z,z1, 11)
+			#loss = compute_distance (z, z1, 'euclidean')
+			#loss = phase_syncrony(z, z1[0,:,:])
 			#loss = dtw(z, z1.numpy())
 			#loss = l(z, z1[0,:,:])[0]
-			return loss.detach().numpy(), z1.detach().numpy()[0]
+			return loss.detach().numpy(), y_pred.detach().numpy()[0]
 	else:
 		y_pred = model(data)
 		loss = l(y_pred, data)
@@ -516,7 +518,7 @@ if __name__ == '__main__':
 			accuracy_list.append((lossT, lr))
 		for e in tqdm(list(range(epoch+1, epoch+num_epochs2+1))):
 			phase = 1
-			train_PF_loader, train_F_Fase2_loader, labels_train, test_loader_F, labels_test = load_dataset(args.dataset, 4)
+			train_PF_loader, train_F_Fase2_loader, labels_train, test_loader_F, labels_test = load_dataset(args.dataset, 5)
 			PF, F, vF_test = next(iter(train_PF_loader)), next(iter(train_F_Fase2_loader)), next(iter(test_loader_F))
 			lossT, lr = backprop(e, model, vPF_train, F, optimizer1, optimizer2, scheduler1, scheduler2, dataTest=vF_train)
 			accuracy_list.append((lossT, lr))
