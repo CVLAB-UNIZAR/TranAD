@@ -185,7 +185,7 @@ def diference_ponderate(prefalta, falta):
 	maximum = np.zeros((4000,3))
 	diffponderate = np.zeros((4000,3))
 	diffponderateumbral = np.zeros((4000,3))
-	umbral = 0.7
+	umbral = 0.4
 	Prefaltadesplazmax.loc[Prefaltadesplazmax[0] < umbral, 0] += umbral
 	Prefaltadesplazmax.loc[Prefaltadesplazmax[1] < umbral, 1] += umbral
 	Prefaltadesplazmax.loc[Prefaltadesplazmax[2] < umbral, 2] += umbral
@@ -202,30 +202,24 @@ def diference_ponderate(prefalta, falta):
 	diffponderateoriginal = torch.tensor(diffponderate.values)
 	diffponderate = torch.tensor(diffponderate.values)
 	s = 1
-	p =2
-	umbralpond = 0.5
+	p = 1
+	umbralpond = 0.3
 
 	for m0 in range(4000-s):
-		if diffponderate[m0,0] > umbralpond:
+		if diffponderate[m0,0] < umbralpond:
 			diffponderate[m0:m0+s,0] = 0
-			m0=m0+s
 		else:
 			diffponderate[m0:m0+p,0] = 1
-			m0=m0+p
 	for m1 in range(4000-s):
-		if diffponderate[m1,1] >umbralpond:
+		if diffponderate[m1,1] < umbralpond:
 			diffponderate[m1:m1+s,1] = 0
-			m1=m1+s
 		else:
 			diffponderate[m1:m1+p,1] = 1
-			m1=m1+p
 	for m2 in range(4000-s):
-		if diffponderate[m2,2] > umbralpond:
+		if diffponderate[m2,2] < umbralpond:
 			diffponderate[m2:m2+s,2] = 0
-			m2=m2+s
 		else:
 			diffponderate[m2:m2+p,2] = 1
-			m2=m2+p
 	return torch.tensor(diffponderate)
 	#return torch.tensor(diffponderateoriginal)
 
