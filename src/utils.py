@@ -185,17 +185,27 @@ def diference_ponderate(prefalta, falta):
 	maximum = np.zeros((4000,3))
 	diffponderate = np.zeros((4000,3))
 	diffponderateumbral = np.zeros((4000,3))
-	umbral = 0.4
-	Prefaltadesplazmax.loc[Prefaltadesplazmax[0] < umbral, 0] += umbral
-	Prefaltadesplazmax.loc[Prefaltadesplazmax[1] < umbral, 1] += umbral
-	Prefaltadesplazmax.loc[Prefaltadesplazmax[2] < umbral, 2] += umbral
+	umbral = 0.5
+	Prefaltadesplazmax.loc[Prefaltadesplazmax[0] < umbral, 0] = (umbral - Prefaltadesplazmax[0])+umbral
+	Prefaltadesplazmax.loc[Prefaltadesplazmax[1] < umbral, 1] = (umbral - Prefaltadesplazmax[1])+umbral
+	Prefaltadesplazmax.loc[Prefaltadesplazmax[2] < umbral, 2] = (umbral - Prefaltadesplazmax[2])+umbral
 
-	Faltadesplazmax.loc[Faltadesplazmax[0] < umbral, 0] += umbral
-	Faltadesplazmax.loc[Faltadesplazmax[1] < umbral, 1] += umbral
-	Faltadesplazmax.loc[Faltadesplazmax[2] < umbral, 2] += umbral
-
+	Faltadesplazmax.loc[Faltadesplazmax[0] < umbral, 0] = (umbral - Faltadesplazmax[0])+umbral
+	Faltadesplazmax.loc[Faltadesplazmax[1] < umbral, 1] = (umbral - Faltadesplazmax[1])+umbral
+	Faltadesplazmax.loc[Faltadesplazmax[2] < umbral, 2] = (umbral - Faltadesplazmax[2])+umbral
 
 	diff = np.abs((np.abs(Prefaltadesplazmax)) - (np.abs(Faltadesplazmax)))
+	diffu = np.abs((np.abs(Prefaltadesplazmax)) - (np.abs(Faltadesplazmax)))
+	umbraldiff = 0.1
+
+	diff.loc[diff[0] < umbraldiff, 0] = 0
+	diff.loc[diff[1] < umbraldiff, 1] = 0
+	diff.loc[diff[2] < umbraldiff, 2] = 0
+
+	diff.loc[diff[0] >= umbraldiff, 0] = 1
+	diff.loc[diff[1] >= umbraldiff, 1] = 1
+	diff.loc[diff[2] >= umbraldiff, 2] = 1
+
 	media = np.abs(np.abs(Prefaltadesplazmax) + np.abs(Faltadesplazmax))/2
 
 	diffponderate = (diff / media)
@@ -220,8 +230,8 @@ def diference_ponderate(prefalta, falta):
 			diffponderate[m2:m2+s,2] = 0
 		else:
 			diffponderate[m2:m2+p,2] = 1
-	return torch.tensor(diffponderate)
-	#return torch.tensor(diffponderateoriginal)
+	#return torch.tensor(diffponderate)
+	return torch.tensor(diffponderateoriginal)
 
 def compute_distance (prefalta, falta, metric):
 	pdPrefalta = (pd.DataFrame(prefalta[0,:,:].detach().numpy()))
