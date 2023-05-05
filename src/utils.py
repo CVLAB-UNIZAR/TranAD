@@ -196,7 +196,7 @@ def diference_ponderate(prefalta, falta):
 
 	diff = np.abs((np.abs(Prefaltadesplazmax)) - (np.abs(Faltadesplazmax)))
 	diffu = np.abs((np.abs(Prefaltadesplazmax)) - (np.abs(Faltadesplazmax)))
-	umbraldiff = 0.1
+	umbraldiff = 0.04
 
 	diff.loc[diff[0] < umbraldiff, 0] = 0
 	diff.loc[diff[1] < umbraldiff, 1] = 0
