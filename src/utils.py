@@ -176,15 +176,12 @@ def energy(prefalta, falta, s):
 def diference_ponderate(prefalta, falta):
 	pdPrefalta = pd.DataFrame(prefalta[0,:,:].detach().numpy())
 	pdFalta = pd.DataFrame(falta[0,:,:].detach().numpy())
-	Prefaltadesplazmax = np.zeros((4000,3))
+
 	Prefaltadesplazmax = pdPrefalta
-	Faltadesplazmax = np.zeros((4000,3))
+
 	Faltadesplazmax = pdFalta
-	diff = np.zeros((4000,3))
-	media = np.zeros((4000,3))
-	maximum = np.zeros((4000,3))
-	diffponderate = np.zeros((4000,3))
-	diffponderateumbral = np.zeros((4000,3))
+
+	#Desplazamos los valores que están por debajo de 0.5 para que todos esten por encima
 	umbral = 0.5
 	Prefaltadesplazmax.loc[Prefaltadesplazmax[0] < umbral, 0] = (umbral - Prefaltadesplazmax[0])+umbral
 	Prefaltadesplazmax.loc[Prefaltadesplazmax[1] < umbral, 1] = (umbral - Prefaltadesplazmax[1])+umbral
@@ -194,44 +191,34 @@ def diference_ponderate(prefalta, falta):
 	Faltadesplazmax.loc[Faltadesplazmax[1] < umbral, 1] = (umbral - Faltadesplazmax[1])+umbral
 	Faltadesplazmax.loc[Faltadesplazmax[2] < umbral, 2] = (umbral - Faltadesplazmax[2])+umbral
 
-	diff = np.abs((np.abs(Prefaltadesplazmax)) - (np.abs(Faltadesplazmax)))
-	diffu = np.abs((np.abs(Prefaltadesplazmax)) - (np.abs(Faltadesplazmax)))
-	umbraldiff = 0.04
+	#hacemos la diferencia entre las dos señales
+	diff = np.abs(Prefaltadesplazmax - Faltadesplazmax)
+	#calculamos la amplitud media entre las dos señales - Se hace la media elemento a elemento
+	media = np.abs(Prefaltadesplazmax + Faltadesplazmax)/2
+	#realzamos las medias a partir de un cierto umbral y realzamos la diferencia
+	umbralmedia = 0.65
+	media.loc[media[0] < umbralmedia, 0] = media[0]*100
+	media.loc[media[1] < umbralmedia, 1] = media[1]*100
+	media.loc[media[2] < umbralmedia, 2] = media[2]*100
 
-	diff.loc[diff[0] < umbraldiff, 0] = 0
-	diff.loc[diff[1] < umbraldiff, 1] = 0
-	diff.loc[diff[2] < umbraldiff, 2] = 0
-
-	diff.loc[diff[0] >= umbraldiff, 0] = 1
-	diff.loc[diff[1] >= umbraldiff, 1] = 1
-	diff.loc[diff[2] >= umbraldiff, 2] = 1
-
-	media = np.abs(np.abs(Prefaltadesplazmax) + np.abs(Faltadesplazmax))/2
+	media.loc[media[0] > umbralmedia, 0] = media[0]*0.01
+	media.loc[media[1] > umbralmedia, 1] = media[1]*0.01
+	media.loc[media[2] > umbralmedia, 2] = media[2]*0.01
 
 	diffponderate = (diff / media)
-	diffponderateoriginal = torch.tensor(diffponderate.values)
-	diffponderate = torch.tensor(diffponderate.values)
-	s = 1
-	p = 1
-	umbralpond = 0.3
 
-	for m0 in range(4000-s):
-		if diffponderate[m0,0] < umbralpond:
-			diffponderate[m0:m0+s,0] = 0
-		else:
-			diffponderate[m0:m0+p,0] = 1
-	for m1 in range(4000-s):
-		if diffponderate[m1,1] < umbralpond:
-			diffponderate[m1:m1+s,1] = 0
-		else:
-			diffponderate[m1:m1+p,1] = 1
-	for m2 in range(4000-s):
-		if diffponderate[m2,2] < umbralpond:
-			diffponderate[m2:m2+s,2] = 0
-		else:
-			diffponderate[m2:m2+p,2] = 1
-	#return torch.tensor(diffponderate)
-	return torch.tensor(diffponderateoriginal)
+	umbraldiff = 7
+	#Ponemos el resultado entre "0" y "1"
+	diffponderate.loc[diffponderate[0] < umbraldiff, 0] = 0
+	diffponderate.loc[diffponderate[1] < umbraldiff, 1] = 0
+	diffponderate.loc[diffponderate[2] < umbraldiff, 2] = 0
+
+	diffponderate.loc[diffponderate[0] >= umbraldiff, 0] = 1
+	diffponderate.loc[diffponderate[1] >= umbraldiff, 1] = 1
+	diffponderate.loc[diffponderate[2] >= umbraldiff, 2] = 1
+
+	diffponderate = torch.tensor(diffponderate.values)
+	return torch.tensor(diffponderate)
 
 def compute_distance (prefalta, falta, metric):
 	pdPrefalta = (pd.DataFrame(prefalta[0,:,:].detach().numpy()))

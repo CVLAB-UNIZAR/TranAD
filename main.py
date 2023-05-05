@@ -493,7 +493,7 @@ def backprop(epoch, model, data, dataO, optimizer, optimizer2, scheduler1, sched
 
 if __name__ == '__main__':
 
-	train_PF_loader, train_F_Fase2_loader, labels_train, test_loader_F, labels_test = load_dataset(args.dataset, 5)
+	train_PF_loader, train_F_Fase2_loader, labels_train, test_loader_F, labels_test = load_dataset(args.dataset, 165)# aqui se cambia el número de falta con el que se queire testear
 
 
 	if args.model in ['MERLIN']:
