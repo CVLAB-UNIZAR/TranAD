@@ -168,28 +168,28 @@ def dtw(s, t):
 	return dtw_matrix
 
 def energy(prefalta, falta, s):
-	pdPrefalta = pd.DataFrame(prefalta[0,:,:].detach().numpy())
-	pdFalta = pd.DataFrame(falta[0,:,:].detach().numpy())
+	pdPrefalta = pd.DataFrame(prefalta[0, :, :].detach().numpy())
+	pdFalta = pd.DataFrame(falta[0, :, :].detach().numpy())
 
 	size = pdFalta.shape[0]
 
 	energy = np.abs(pdFalta.pow(2).rolling(window=s).sum() - pdPrefalta.pow(2).rolling(window=s).sum())
-	energy = energy.fillna(0).to_numpy().reshape([1,size,3])
+	energy = energy.fillna(0).to_numpy().reshape([1, size, 3])
 
 	return torch.tensor(energy)
 
-def energy_pond(prefalta, falta, s):
-	pdPrefalta = pd.DataFrame(prefalta[0,:,:].detach().numpy())
-	pdFalta = pd.DataFrame(falta[0,:,:].detach().numpy())
+def energy_pond(prefalta, falta, s, prod:10):
+	pdPrefalta = pd.DataFrame(prefalta[0, :, :].detach().numpy())
+	pdFalta = pd.DataFrame(falta[0, :, :].detach().numpy())
 
 	size = pdFalta.shape[0]
 
 	# Calculamos el máximo
-	maximo = (pdPrefalta-0.5).abs().rolling(window=s*10, min_periods=1).max()
+	maximo = (pdPrefalta-0.5).abs().rolling(window=s*prod, min_periods=1).max()
 
 	energy = np.abs(pdFalta.pow(2).rolling(window=s, min_periods=1).sum() -
 					pdPrefalta.pow(2).rolling(window=s, min_periods=1).sum()) / maximo
-	energy = energy.to_numpy().reshape([1,size,3])
+	energy = energy.to_numpy().reshape([1, size, 3])
 
 	return torch.tensor(energy)
 

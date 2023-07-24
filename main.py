@@ -594,7 +594,7 @@ def train_siamese(epoch, model, data, optimizer, scheduler, device='cuda'):
     tqdm.write(f'Epoch {epoch}, L = {np.mean(ls)}')
     return np.mean(ls)
 
-def inference_siamese(epoch, model, data, optimizer, scheduler, threshold=0.004, device='cuda'):
+def inference_siamese(epoch, model, data, optimizer, scheduler, threshold=0.004, device='cuda', unique=True, prod=10):
     # dataLD[0..2]
     # dataLD[0][batch, 4000, 3]
     loss = ContrastiveLoss(gamma=1, margin=1)
@@ -620,13 +620,21 @@ def inference_siamese(epoch, model, data, optimizer, scheduler, threshold=0.004,
     #loss = calc_correlation(output1, output2)
 
     #loss1 = 1 - phase_syncrony(output1, output2)
-    loss2 = torch.abs((output1 - output2) / output1) + torch.sqrt((output1 - output2)**2)
+    #loss2 = torch.abs((output1 - output2) / output1) + torch.sqrt((output1 - output2)**2)
 
-    #loss2 = energy_pond(output1.cpu(), output2.cpu(), 10)
+    loss2 = energy_pond(output1.cpu(), output2.cpu(), 10, prod=prod)
 
     #loss2 = it.cumtrapz(loss2.data.cpu().numpy(), initial=0.0)
 
-    score = (loss2 > threshold)*1.0
+    if unique:
+        score = (loss2 > threshold)*1.0
+    else:
+        score = torch.from_numpy(np.zeros_like(output1.cpu().detach().numpy()))
+        for i in range(threshold.shape[0]):
+            if loss2.is_cuda:
+                score[0, :, i] = loss2[:, :, i].cpu() > threshold[i]
+            else:
+                score[0, :, i] = loss2[:, :, i] > threshold[i]
 
     return loss2[0], (output1, output2), score[0]
 
@@ -642,8 +650,8 @@ def CIRCE_mode():
     # 1. Prepare data
     data = SiameseDataset('processed/CIRCE/faltas_1', 'data/CIRCE/ResumenBloqueSimulaciones1-200.csv', './',
                           mode='train')
-    data_test = SiameseDataset('processed/CIRCE/faltas', 'data/CIRCE/ResumenBloqueSimulaciones1-200.csv', './',
-                               mode='_test_all')
+    data_test = SiameseDataset('processed/CIRCE/faltas_1', 'data/CIRCE/ResumenBloqueSimulaciones1-200.csv', './',
+                               mode='_test_E')
     model, optimizer, optimContrastive, scheduler, epoch, accuracy_list = load_model(args.model, data.faltas.shape[2])
 
     model = model.to('cuda')
@@ -683,29 +691,50 @@ def CIRCE_mode():
                 dfDatos, th, pos = compute_threshold(lt, ls, levels=20)
                 df1 = pd.concat([df1, pd.DataFrame([th])], ignore_index=True)
 
-            th = df1.mean()
-            print(f'{color.HEADER}Executing with the optimum threshold {th.item()}...{color.ENDC}')
-            lossT, (x1, x2), score = inference_siamese(item, model, data_test, threshold=th.item(),
-                                                       optimizer=optimContrastive, scheduler=scheduler)
+            if args.prod == 'TRUE':
+                th = torch.from_numpy(df1.to_numpy())
+                for mult in range(19):
+                    print(f'{color.HEADER}Executing with the optimum threshold {th}...{color.ENDC}')
+                    lossT, (x1, x2), score = inference_siamese(item, model, data_test, threshold=th,
+                                                               optimizer=optimContrastive, scheduler=scheduler,
+                                                               unique=False, prod=mult+1)
 
-            # 5. Plot curves
-            print(f'{color.HEADER}Printing curves...{color.ENDC}')
-            if args.test:
-                #plotEspectrogramas(x1[0], x2[0])
-                plotterSiamese(f'{args.model}_{args.dataset}_{item}', x1[0], x2[0], lossT,
-                               data_test[item][2], score, th.item(), data_test[item][4])
+                    print(f'{color.HEADER}Grabbing data for sample {item}...{color.ENDC}')
+                    for canal in range(score.shape[1]):
+                        result, pred = pot_eval_siamese(score.data.cpu().numpy()[:, canal],
+                                                        data_test[item][2][:, 0],
+                                                        pot_th=th,
+                                                        item=item,
+                                                        code=data_test[item][4])
+                        df = pd.concat([df, pd.DataFrame([result])], ignore_index=True)
 
-            # 6. Grabbing data
-            print(f'{color.HEADER}Grabbing data for sample {item}...{color.ENDC}')
-            for canal in range(score.shape[1]):
-                result, pred = pot_eval_siamese(score.data.cpu().numpy()[:, canal],
-                                                data_test[item][2][:, 0],
-                                                pot_th=th.item(),
-                                                item=item,
-                                                code=data_test[item][4])
-                df = pd.concat([df, pd.DataFrame([result])], ignore_index=True)
+                print(f'{color.BLUE}-----------------------------{color.ENDC}')
+                df.to_csv('plots/TransformerSiamesCirce_CIRCE/statsE.csv')
 
-            print(f'{color.BLUE}-----------------------------{color.ENDC}')
+            else:
+                th = torch.from_numpy(df1.to_numpy())
+                print(f'{color.HEADER}Executing with the optimum threshold {th}...{color.ENDC}')
+                lossT, (x1, x2), score = inference_siamese(item, model, data_test, threshold=th,
+                                                           optimizer=optimContrastive, scheduler=scheduler, unique=False)
+
+                # 5. Plot curves
+                print(f'{color.HEADER}Printing curves...{color.ENDC}')
+                if args.test:
+                    #plotEspectrogramas(x1[0], x2[0])
+                    plotterSiamese(f'{args.model}_{args.dataset}_{item}', x1[0], x2[0], lossT,
+                                   data_test[item][2], score, th, data_test[item][4])
+
+                # 6. Grabbing data
+                print(f'{color.HEADER}Grabbing data for sample {item}...{color.ENDC}')
+                for canal in range(score.shape[1]):
+                    result, pred = pot_eval_siamese(score.data.cpu().numpy()[:, canal],
+                                                    data_test[item][2][:, 0],
+                                                    pot_th=th,
+                                                    item=item,
+                                                    code=data_test[item][4])
+                    df = pd.concat([df, pd.DataFrame([result])], ignore_index=True)
+
+                print(f'{color.BLUE}-----------------------------{color.ENDC}')
 
         print(f'{color.GREEN}Grabbing ALL DATA...{color.ENDC}')
         df.to_csv('plots/TransformerSiamesCirce_CIRCE/stats.csv')

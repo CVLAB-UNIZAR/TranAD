@@ -63,10 +63,10 @@ def plotterSiamese(name, y_true, y_pred, ascore, labels, score, umbral, code):
 									 labels[:, dim], \
 									 ascore[:, dim].data.cpu().numpy(), \
 									 score[:, dim].data.cpu().numpy()
-		vUmbral = np.ones_like(s)*umbral
+		vUmbral = np.ones_like(s)*umbral[dim].numpy()
 		fig, (ax1, ax2) = plt.subplots(2, 1, sharex=True)
 		ax1.set_ylabel('Value')
-		ax1.set_title(f'Fault = {code} / Dimension = {dim}')
+		ax1.set_title(f'Fault = {code} / Dimension = {dim} / Th = {umbral[dim].numpy()}')
 		# if dim == 0: np.save(f'true{dim}.npy', y_t); np.save(f'pred{dim}.npy', y_p); np.save(f'ascore{dim}.npy', a_s)
 		ax1.plot(smooth(y_t), linewidth=0.2, label='True')
 		ax1.plot(smooth(y_p), '-', alpha=0.6, linewidth=0.3, label='Predicted')

@@ -34,4 +34,10 @@ parser.add_argument('--modo',
 					required=True,
 					default=8,
 					help='Execute or train with CIRCESiamese or TranAD')
+parser.add_argument('--prod',
+					metavar='-prod',
+					type=str,
+					required=True,
+					default='False',
+					help='Experimento E')
 args = parser.parse_args()
