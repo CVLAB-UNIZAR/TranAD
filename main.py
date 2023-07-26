@@ -23,6 +23,7 @@ import random
 
 from src.data import SiameseDataset
 from src.contrastiveLoss import ContrastiveLoss, ContrastiveLossFF
+from src.ComparativeProcess import ComparativeProcess
 import torch.nn.functional as Funct
 import scipy.integrate as it
 
@@ -69,8 +70,9 @@ def load_dataset(dataset, idx):
         test_loader_test = DataLoader(loader[1][idx, :, :], batch_size=loader[1].shape[1])
         labels_test = loader[2][idx, :, :]
     else:
-        test_loader = DataLoader(loader[1][idx, :, :], batch_size=loader[1].shape[0])
+        test_loader = DataLoader(loader[1], batch_size=loader[1].shape[0])
         labels = loader[2]
+        return train_loader, test_loader, labels
 
     return train_loader, test_loader, labels, test_loader_test, labels_test
 
@@ -83,9 +85,9 @@ def save_model(model, optimizer, scheduler, epoch, accuracy_list, optimizer2=Non
         torch.save({
             'epoch': epoch,
             'model_state_dict': model.state_dict(),
-            'optimizer_state_dict': optimizer1.state_dict(),
+            'optimizer_state_dict': optimizer.state_dict(),
             'optimizer2_state_dict': optimizer2.state_dict(),
-            'scheduler_state_dict': scheduler1.state_dict(),
+            'scheduler_state_dict': scheduler.state_dict(),
             'scheduler2_state_dict': scheduler2.state_dict(),
             'accuracy_list': accuracy_list}, file_path)
     else:
@@ -557,6 +559,40 @@ def backprop(epoch, model, data, dataO,
         else:
             return loss.detach().numpy(), y_pred.detach().numpy()
 
+def backpropRev(epoch, model, data, optimizer, scheduler, device='cuda', training=True):
+    l = nn.MSELoss(reduction='none')
+    data_x = torch.DoubleTensor(data)
+    dataset = TensorDataset(data_x, data_x)
+    bs = model.batch if training else len(data)
+    dataloader = DataLoader(dataset, batch_size=bs)
+    n = epoch + 1
+    w_size = model.n_window
+    l1s, l2s = [], []
+    if training:
+        for d, _ in dataloader:
+            local_bs = d.shape[0]
+            window = d.permute(1, 0, 2)
+            elem = window[-1, :, :].view(1, local_bs, feats)
+            z = model(window, elem)
+            # g = make_dot(z, params=dict(model.named_parameters()), show_saved=True).render("tranAD", format="png")
+            l1 = l(z, elem) if not isinstance(z, tuple) else (1 / n) * l(z[0], elem) + (1 - 1 / n) * l(z[1], elem)
+            if isinstance(z, tuple): z = z[1]
+            l1s.append(torch.mean(l1).item())
+            loss = torch.mean(l1)
+            optimizer.zero_grad()
+            loss.backward(retain_graph=True)
+            optimizer.step()
+        scheduler.step()
+        tqdm.write(f'Epoch {epoch},\tL1 = {np.mean(l1s)}')
+        return np.mean(l1s), optimizer.param_groups[0]['lr']
+    else:
+        for d, _ in dataloader:
+            window = d.permute(1, 0, 2)
+            elem = window[-1, :, :].view(1, bs, feats)
+            z = model(window, elem)
+            if isinstance(z, tuple): z = z[1]
+        loss = l(z, elem)[0]
+        return loss.detach().numpy(), z.detach().numpy()[0]
 
 def train_siamese(epoch, model, data, optimizer, scheduler, device='cuda'):
     # dataLD[0..2]
@@ -661,8 +697,8 @@ def CIRCE_mode():
     if not args.test:
         epoch = 0
         print(f'{color.HEADER}Training {args.model} on {args.dataset}{color.ENDC}')
-        num_epochs = args.epochs;
-        e = epoch + 1;
+        num_epochs = args.epochs
+        e = epoch + 1
         start = time()
         for e in tqdm(list(range(epoch + 1, epoch + num_epochs + 1))):
             loss = train_siamese(e, model, data, optimizer=optimContrastive, scheduler=scheduler)
@@ -737,11 +773,86 @@ def CIRCE_mode():
                 print(f'{color.BLUE}-----------------------------{color.ENDC}')
 
         print(f'{color.GREEN}Grabbing ALL DATA...{color.ENDC}')
-        df.to_csv('plots/TransformerSiamesCirce_CIRCE/stats.csv')
+        df.to_csv('plots/TransformerSiamesCirce_CIRCE/statsTranAD.csv')
 
 
 def TranAD_mode():
-    a=1
+
+    # 1. Prepare data
+    comparativa = ComparativeProcess('processed/CIRCE/faltas_1', 'data/CIRCE/ResumenBloqueSimulaciones1-200.csv')
+    comparativa.prepare_data()
+
+    # 2. Training phase
+    loss_list = []
+    if not args.test:
+        epoch = 0
+        print(f'{color.HEADER}Training {args.model} on {args.dataset}{color.ENDC}')
+        num_epochs = args.epochs
+        e = epoch + 1
+        start = time()
+        for e in tqdm(list(range(epoch + 1, epoch + num_epochs + 1))):
+            loss = backprop(e, comparativa.model, comparativa.trainD, comparativa.trainO,
+                            optimizer=comparativa.optimizer,
+                            scheduler=comparativa.scheduler)
+            loss_list.append(loss)
+        save_model(comparativa.model, comparativa.optimizer, comparativa.scheduler, e, loss_list)
+        plot_losses(loss_list, f'{args.model}_{args.dataset}/TrainComparative')
+
+    # 3. Testing phase
+    if args.test:
+        torch.zero_grad = True
+        comparativa.model.eval()
+        df = pd.DataFrame()
+        for item in range(len(comparativa.data_test.faltas)):
+            print(f'{color.HEADER}First iteration: Sample {item}{color.ENDC}')
+            comparativa.prepare_data_test(item)
+            loss, z = backprop(0, comparativa.model, comparativa.testD, comparativa.testO,
+                            optimizer=comparativa.optimizer,
+                            scheduler=comparativa.scheduler,
+                               training=False)
+            score = comparativa.compute_score(loss, z, 0.0082, True)
+            plotDiff("prueba", comparativa.trainO, z, comparativa.data_test.labels[item])
+
+            # 4. Statistics
+            print(f'{color.HEADER}Computing threshold ...{color.ENDC}')
+            df1 = pd.DataFrame()
+            for canal in range(score.shape[1]):
+                lt = loss[:, canal]
+                l, ls =np.zeros_like(lt), comparativa.data_test.faltas[item][:,canal]
+
+                dfDatos, th, pos = compute_threshold(lt, ls, levels=20)
+                df1 = pd.concat([df1, pd.DataFrame([th])], ignore_index=True)
+
+            th = torch.from_numpy(df1.to_numpy())
+            print(f'{color.HEADER}Executing with the optimum threshold {th}...{color.ENDC}')
+            score = comparativa.compute_score(loss, z, th, unique=False)
+
+            # 5. Plot curves
+            print(f'{color.HEADER}Printing curves...{color.ENDC}')
+            if args.test:
+                #plotEspectrogramas(x1[0], x2[0])
+                plotterComparative(f'{args.model}_{args.dataset}_{item}', comparativa.data_test.faltas[item],
+                                   z,
+                                   loss,
+                                   comparativa.data_test.labels[item],
+                                   score,
+                                   th,
+                                   "test")
+
+            # 6. Grabbing data
+            print(f'{color.HEADER}Grabbing data for sample {item}...{color.ENDC}')
+            for canal in range(score.shape[1]):
+                result, pred = pot_eval_siamese(score[:, canal].numpy(),
+                                                comparativa.data_test.labels[item, :, canal],
+                                                pot_th=th,
+                                                item=item)
+                df = pd.concat([df, pd.DataFrame([result])], ignore_index=True)
+
+            print(f'{color.BLUE}-----------------------------{color.ENDC}')
+
+    print(f'{color.GREEN}Grabbing ALL DATA...{color.ENDC}')
+    df.to_csv('plots/Comparative/statsTranAD.csv')
+
 
 
 if __name__ == '__main__':

@@ -182,6 +182,23 @@ def pot_eval_siamese(score, label, q=1e-5, level=0.0002, pot_th=0.004, item=0, c
        # 'pot-latency': p_latency
     }, np.array(score)
 
+def pot_eval_comparative(score, label, q=1e-5, level=0.0002, pot_th=0.004, item=0, code=0):
+    p_t = calc_point2point(score, label)
+    return {
+        'item': item,
+        'f1': p_t[0],
+        'precision': p_t[1],
+        'recall': p_t[2],
+        'TP': p_t[3],
+        'TN': p_t[4],
+        'FP': p_t[5],
+        'FN': p_t[6],
+        'ROC/AUC': p_t[7],
+        'threshold': pot_th,
+        'code': code
+        # 'pot-latency': p_latency
+    }, np.array(score)
+
 def compute_threshold(loss, label, levels=10):
     maximo = np.max(loss)
     level = maximo/20
