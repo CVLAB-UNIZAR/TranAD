@@ -773,7 +773,7 @@ def CIRCE_mode():
                 print(f'{color.BLUE}-----------------------------{color.ENDC}')
 
         print(f'{color.GREEN}Grabbing ALL DATA...{color.ENDC}')
-        df.to_csv('plots/TransformerSiamesCirce_CIRCE/statsTranAD.csv')
+        df.to_csv('plots/TransformerSiamesCirce_CIRCE/statsTranAD_SelfConditioning.csv')
 
 
 def TranAD_mode():
@@ -850,8 +850,8 @@ def TranAD_mode():
 
             print(f'{color.BLUE}-----------------------------{color.ENDC}')
 
-    print(f'{color.GREEN}Grabbing ALL DATA...{color.ENDC}')
-    df.to_csv('plots/Comparative/statsTranAD.csv')
+        print(f'{color.GREEN}Grabbing ALL DATA...{color.ENDC}')
+        df.to_csv(f'plots/Comparative/stats{args.model}.csv')
 
 
 
