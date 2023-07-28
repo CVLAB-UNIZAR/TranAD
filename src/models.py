@@ -62,6 +62,7 @@ class LSTM_AD(nn.Module):
 		super(LSTM_AD, self).__init__()
 		self.name = 'LSTM_AD'
 		self.lr = 0.002
+		self.n_window = 10
 		self.n_feats = feats
 		self.n_hidden = 64
 		self.lstm = nn.LSTM(feats, self.n_hidden)
@@ -312,7 +313,7 @@ class GDN(nn.Module):
 
 	def forward(self, data):
 		# Bahdanau style attention
-		att_score = self.attention(data).view(self.n_window, 1)
+		att_score = self.attention(data.view(1, -1)).view(self.n_window, 1)
 		data = data.view(self.n_window, self.n_feats)
 		data_r = torch.matmul(data.permute(1, 0), att_score)
 		# GAT convolution on complete graph

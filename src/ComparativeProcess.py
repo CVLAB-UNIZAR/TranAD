@@ -32,7 +32,8 @@ class ComparativeProcess(object):
         self.test_loader = DataLoader(self.data_test.faltas[item], batch_size=self.data_test.faltas.shape[1])
         self.testD = next(iter(self.test_loader))
         self.testO = self.testD
-        self.testD = self.convert_to_windows(self.testD, self.model)
+        if self.model.name in ['Attention', 'DAGMM', 'USAD', 'MSCRED', 'CAE_M', 'GDN', 'MTAD_GAT', 'MAD_GAN'] or 'TranAD' in self.model.name:
+            self.testD = self.convert_to_windows(self.testD, self.model)
 
     def compute_score(self, loss, output, threshold, unique):
         if unique:

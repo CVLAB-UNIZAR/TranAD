@@ -27,6 +27,8 @@ from src.ComparativeProcess import ComparativeProcess
 import torch.nn.functional as Funct
 import scipy.integrate as it
 
+import time
+
 import os
 
 os.environ["PATH"] += os.pathsep + 'C:/Users/jelia/anaconda3/envs/GANs/Library/bin/graphviz/'
@@ -143,8 +145,9 @@ def backprop(epoch, model, data, dataO,
         if training:
             for d in data:
                 _, x_hat, z, gamma = model(d)
+                d = d.view(1, -1)
                 l1, l2 = l(x_hat, d), l(gamma, d)
-                l1s.append(torch.mean(l1).item());
+                l1s.append(torch.mean(l1).item())
                 l2s.append(torch.mean(l2).item())
                 loss = torch.mean(l1) + torch.mean(l2)
                 optimizer.zero_grad()
@@ -160,7 +163,7 @@ def backprop(epoch, model, data, dataO,
                 ae1s.append(x_hat)
             ae1s = torch.stack(ae1s)
             y_pred = ae1s[:, data.shape[1] - feats:data.shape[1]].view(-1, feats)
-            loss = l(ae1s, data)[:, data.shape[1] - feats:data.shape[1]].view(-1, feats)
+            loss = l(ae1s, data.view(data.shape[0], -1))[:, data.shape[1] - feats:data.shape[1]].view(-1, feats)
             return loss.detach().numpy(), y_pred.detach().numpy()
     if 'Attention' in model.name:
         l = nn.MSELoss(reduction='none')
@@ -257,7 +260,7 @@ def backprop(epoch, model, data, dataO,
                     x, h = model(d, h if i else None)
                 else:
                     x = model(d)
-                loss = torch.mean(l(x, d))
+                loss = torch.mean(l(x, d.view(1, -1)))
                 l1s.append(torch.mean(loss).item())
                 optimizer.zero_grad()
                 loss.backward()
@@ -274,7 +277,7 @@ def backprop(epoch, model, data, dataO,
                 xs.append(x)
             xs = torch.stack(xs)
             y_pred = xs[:, data.shape[1] - feats:data.shape[1]].view(-1, feats)
-            loss = l(xs, data)
+            loss = l(xs, data.view(data.shape[0], -1))
             loss = loss[:, data.shape[1] - feats:data.shape[1]].view(-1, feats)
             return loss.detach().numpy(), y_pred.detach().numpy()
     elif 'GAN' in model.name:
@@ -547,8 +550,8 @@ def backprop(epoch, model, data, dataO,
             # loss = l(z, z1[0,:,:])[0]
             return loss.detach().numpy(), (z1, z2)
     else:
-        y_pred = model(data)
-        loss = l(y_pred, data)
+        y_pred = model(dataO)
+        loss = l(y_pred, dataO)
         if training:
             tqdm.write(f'Epoch {epoch},\tMSE = {loss}')
             optimizer.zero_grad()
@@ -699,10 +702,12 @@ def CIRCE_mode():
         print(f'{color.HEADER}Training {args.model} on {args.dataset}{color.ENDC}')
         num_epochs = args.epochs
         e = epoch + 1
-        start = time()
+        st = time.process_time()
         for e in tqdm(list(range(epoch + 1, epoch + num_epochs + 1))):
             loss = train_siamese(e, model, data, optimizer=optimContrastive, scheduler=scheduler)
             loss_list.append(loss)
+        et = time.process_time()
+        print("Tiempo de ejecución: ",et-st, 'segundos')
         save_model(model,optimizer,scheduler,e, loss_list)
         plot_losses(loss_list, f'{args.model}_{args.dataset}/TrainWithTest')
 
@@ -720,12 +725,16 @@ def CIRCE_mode():
             # 4. Statistics
             print(f'{color.HEADER}Computing threshold ...{color.ENDC}')
             df1 = pd.DataFrame()
+            st = time.process_time()
             for canal in range(score.shape[1]):
                 lt = lossT.data.cpu().numpy()[:, canal]
                 l, ls =np.zeros_like(lt), data_test[item][2][:,canal]
 
                 dfDatos, th, pos = compute_threshold(lt, ls, levels=20)
                 df1 = pd.concat([df1, pd.DataFrame([th])], ignore_index=True)
+
+            et = time.process_time()
+            print("Threshold computing: ",et-st, 'segundos')
 
             if args.prod == 'TRUE':
                 th = torch.from_numpy(df1.to_numpy())
@@ -748,10 +757,13 @@ def CIRCE_mode():
                 df.to_csv('plots/TransformerSiamesCirce_CIRCE/statsE.csv')
 
             else:
+                st = time.perf_counter()
                 th = torch.from_numpy(df1.to_numpy())
                 print(f'{color.HEADER}Executing with the optimum threshold {th}...{color.ENDC}')
                 lossT, (x1, x2), score = inference_siamese(item, model, data_test, threshold=th,
                                                            optimizer=optimContrastive, scheduler=scheduler, unique=False)
+                et = time.perf_counter()
+                print("Inferencia: ",et-st, 'segundos')
 
                 # 5. Plot curves
                 print(f'{color.HEADER}Printing curves...{color.ENDC}')
@@ -789,12 +801,14 @@ def TranAD_mode():
         print(f'{color.HEADER}Training {args.model} on {args.dataset}{color.ENDC}')
         num_epochs = args.epochs
         e = epoch + 1
-        start = time()
+        st = time.process_time()
         for e in tqdm(list(range(epoch + 1, epoch + num_epochs + 1))):
             loss = backprop(e, comparativa.model, comparativa.trainD, comparativa.trainO,
                             optimizer=comparativa.optimizer,
                             scheduler=comparativa.scheduler)
             loss_list.append(loss)
+        et = time.process_time()
+        print("Tiempo de ejecución: ",et-st, 'segundos')
         save_model(comparativa.model, comparativa.optimizer, comparativa.scheduler, e, loss_list)
         plot_losses(loss_list, f'{args.model}_{args.dataset}/TrainComparative')
 
@@ -806,10 +820,13 @@ def TranAD_mode():
         for item in range(len(comparativa.data_test.faltas)):
             print(f'{color.HEADER}First iteration: Sample {item}{color.ENDC}')
             comparativa.prepare_data_test(item)
+            st1 = time.perf_counter()
             loss, z = backprop(0, comparativa.model, comparativa.testD, comparativa.testO,
                             optimizer=comparativa.optimizer,
                             scheduler=comparativa.scheduler,
                                training=False)
+            et1 = time.perf_counter()
+            print("Tiempo de ejecución: ",et1-st1, 'segundos')
             score = comparativa.compute_score(loss, z, 0.0082, True)
             plotDiff("prueba", comparativa.trainO, z, comparativa.data_test.labels[item])
 
@@ -820,11 +837,12 @@ def TranAD_mode():
                 lt = loss[:, canal]
                 l, ls =np.zeros_like(lt), comparativa.data_test.faltas[item][:,canal]
 
-                dfDatos, th, pos = compute_threshold(lt, ls, levels=20)
+                dfDatos, th, pos = compute_threshold(lt, ls, levels=100)
                 df1 = pd.concat([df1, pd.DataFrame([th])], ignore_index=True)
 
             th = torch.from_numpy(df1.to_numpy())
             print(f'{color.HEADER}Executing with the optimum threshold {th}...{color.ENDC}')
+            #th = torch.tensor([0.005,0.083,0.117])
             score = comparativa.compute_score(loss, z, th, unique=False)
 
             # 5. Plot curves

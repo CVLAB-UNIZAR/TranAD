@@ -201,7 +201,7 @@ def pot_eval_comparative(score, label, q=1e-5, level=0.0002, pot_th=0.004, item=
 
 def compute_threshold(loss, label, levels=10):
     maximo = np.max(loss)
-    level = maximo/20
+    level = maximo/levels
     th=0
 
     datos = pd.DataFrame()
